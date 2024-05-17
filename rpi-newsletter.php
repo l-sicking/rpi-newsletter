@@ -9,22 +9,23 @@ Author: reintanz
 Author URI: http://URI_Of_The_Plugin_Author
 License: A "Slug" license name e.g. GPL2
 */
+require_once 'classes/rpi-newsletter-cron.php';
 
 class RpiNewsletter
 {
 
-
     public function __construct()
     {
+        $Newsletter = new RpiNewsletterCron();
+        add_action('cron_post_import_newsletter', [$Newsletter, 'getAllInstancesAndImportPosts']);
         add_action('save_post', [$this, 'addInstanceTermOnSave'], 10, 3);
 
     }
 
-    private function addInstanceTermOnSave($post_id, $post, $update)
+    public function addInstanceTermOnSave($post_id, $post, $update)
     {
 
         if (is_a($post, 'WP_Post') && $post->post_type == 'instanz' && !has_term($post->post_name, 'term_instanz', $post->ID)) {
-
 
 
             $result = wp_create_term($post->post_name, 'term_instanz');
