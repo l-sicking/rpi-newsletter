@@ -182,22 +182,26 @@ class RPIPostImporter
             if ($post_id && !is_wp_error($post_id)) {
 
                 // Medieninhalte hinzufügen
-                if (!empty($item['featured_media'])) {
-                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
-                    $this->import_media($item['featured_media']['url']);
-                    $this->log('Media Imported');
-
-                }
+                /// TODO Media import not working
+//                if (!empty($item['featured_media'])) {
+//                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
+//                    $this->import_media($item['featured_media']['url'], $post_id);
+//                    $this->log('Media Imported');
+//
+//                }
 
                 // Kategorien und Tags hinzufügen
                 if (!empty($item['categories'])) {
-
+                    $this->log('Trying to assign Categories Terms: ' . var_export($item['categories'], true));
                     $this->assign_terms($post_id, $item['categories'], 'category');
+                    $this->log('Assignment of Categories Terms complete');
                 }
                 if (!empty($item['tags'])) {
+                    $this->log('Trying to assign Tags Terms: ' . var_export($item['tags'], true));
                     $this->assign_terms($post_id, $item['tags'], 'post_tag');
-                }
+                    $this->log('Assignment of Tags Terms complete');
 
+                }
 
                 $this->log("Beitrag erstellt: '{$item['post_title']}'", $logging);
 
@@ -210,7 +214,7 @@ class RPIPostImporter
 
     }
 
-    private function import_media($media_url)
+    private function import_media($media_url, $post_id = 0)
     {
         if (!$media_url) {
             return null;
@@ -219,24 +223,28 @@ class RPIPostImporter
         // Der Dateiname wird aus der URL extrahiert.
         $file_name = basename($media_url);
 
+        $this->log(var_export($file_name, true));
         // Temporärdatei erstellen.
         $temp_file = download_url($media_url);
-        if (is_wp_error($temp_file)) {
-            return null;
-        }
+        $this->log(var_export($temp_file, true));
+
 
         // Dateiinformationen vorbereiten.
         $file = array(
             'name' => $file_name,
             'type' => mime_content_type($temp_file),
             'tmp_name' => $temp_file,
-            'error' => 0,
+            'error' => 1,
             'size' => filesize($temp_file),
         );
+        $this->log(var_export($file, true));
 
         // Die Datei wird der Medienbibliothek hinzugefügt.
-        $media_id = media_handle_sideload($file, 0);
+        $media_id = media_handle_sideload($file, $post_id);
+
+
         if (is_wp_error($media_id)) {
+            $this->log('Media import Failed'. $media_id->get_error_message());
             @unlink($temp_file);
             return null;
         }
