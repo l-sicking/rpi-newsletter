@@ -36,7 +36,18 @@ class RpiNewsletter
         // Populate the custom columns with data
         add_action('manage_newsletter-post_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
+        add_action('template_redirect', [$this, 'redirect_to_origin_page']);
 
+    }
+
+    function redirect_to_origin_page()
+    {
+        if (is_single() && get_post_type() === 'newsletter_post') {
+            $origin_link = get_post_meta(get_the_ID(), 'import_link', true);
+            if (!empty($origin_link)) {
+                wp_redirect($origin_link);
+            }
+        }
     }
 
     // Add new columns to the custom post type
@@ -74,7 +85,6 @@ class RpiNewsletter
 
     public function getAllInstancesAndImportPosts()
     {
-        RpiNewsletter::log('Cron Triggered');
 
         $args = [
             'post_type' => 'instanz',
@@ -83,7 +93,6 @@ class RpiNewsletter
 
         $instances = get_posts($args);
         RpiNewsletter::log('Found ' . count($instances) . ' instances to process.');
-        //TODO make logging optional by using debug mode as indication
 
         foreach ($instances as $instance) {
             $api_url = get_post_meta($instance->ID, 'api_url', true);
@@ -103,6 +112,10 @@ class RpiNewsletter
             $debugmode = get_post_meta($instance->ID, 'debugmode', true);
             $status_ignorelist = [];
 
+            $graphql = get_post_meta($instance->ID, 'graphql_import', true);
+            $graphql_body = get_post_meta($instance->ID, 'graphql_request_body', true);
+
+
             // Loop through rows.
             $row = 0;
             $term_mapping = array();
@@ -118,10 +131,11 @@ class RpiNewsletter
             endwhile;
 
 
-            RpiNewsletter::log("Processing instance ID {$instance->ID} with API URL {$api_url}");
+            RpiNewsletter::log("Processing instance ID {$instance->ID} with API URL {$api_url}", $debugmode);
 
             $importer = new RPIPostImporter();
-            $post_ids = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode);
+
+            $post_ids = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body);
             RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
 
             foreach ($post_ids as $post_id) {
@@ -130,38 +144,40 @@ class RpiNewsletter
                     $result = wp_update_post($post_arr, true);
 
                     if (is_wp_error($result)) {
-                        RpiNewsletter::log("Error updating post author for post ID {$post_id}: " . $result->get_error_message());
+                        RpiNewsletter::log("Error updating post author for post ID {$post_id}: " . $result->get_error_message(), $debugmode);
                     } else {
-                        RpiNewsletter::log("Updated post author for post ID {$post_id} to user ID {$standard_user}");
+                        RpiNewsletter::log("Updated post author for post ID {$post_id} to user ID {$standard_user}", $debugmode);
                     }
                 }
 
                 if (empty(wp_get_post_terms($post_id, 'term_instanz'))) {
                     $target_instanz_term = wp_get_post_terms($instance->ID, 'term_instanz', array('fields' => 'ids'));
-                    RpiNewsletter::log("Set Instanz Term of Imported Post : {$post_id}: " . implode(', ', $target_instanz_term));
+                    RpiNewsletter::log("Set Instanz Term of Imported Post : {$post_id}: " . implode(', ', $target_instanz_term), $debugmode);
                     wp_set_post_terms($post_id, $target_instanz_term, 'term_instanz', true);
                 }
 
                 if (!empty($standard_terms)) {
                     wp_set_post_terms($post_id, $standard_terms, 'post_tag', true);
-                    RpiNewsletter::log("Set Tags for post ID {$post_id}: " . implode(', ', $standard_terms));
+                    RpiNewsletter::log("Set Tags for post ID {$post_id}: " . implode(', ', $standard_terms), $debugmode);
                 }
             }
 
-            // TODO: Add term mapping log if implemented
         }
 
         RpiNewsletter::log('Cron completed');
         return;
     }
 
-    static function log($message)
+    static function log($message, $logging = true)
     {
-        $log_file = WP_CONTENT_DIR . '/rpi_post_importer_log.txt'; // Path to the log file
-        $timestamp = current_time('mysql');
-        $entry = "{$timestamp}: {$message}\n";
+        if ($logging) {
 
-        file_put_contents($log_file, $entry, FILE_APPEND);
+            $log_file = WP_CONTENT_DIR . '/rpi_post_importer_log.txt'; // Path to the log file
+            $timestamp = current_time('mysql');
+            $entry = "{$timestamp}: {$message}\n";
+
+            file_put_contents($log_file, $entry, FILE_APPEND);
+        }
     }
 
     public function addInstanceTermOnSave($post_id, $post, $update)

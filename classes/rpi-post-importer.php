@@ -3,139 +3,211 @@
 class RPIPostImporter
 {
 
-    public function rpi_import_post($api_url = '', $status_ignorelist = [], $term_mapping = [], $dryrun = false, $logging = true)
+    public function rpi_import_post($api_url = '', $status_ignorelist = [], $term_mapping = [], $dryrun = false, $logging = true, $graphql = false, $graphql_body = '')
     {
 
+        $posts = [];
 
-        $this->log('Start des Importvorgangs.');
+        if ($graphql) {
 
-        $url = sanitize_url($api_url);
+            $this->log('Start des Graphql Importvorgangs.', $logging);
 
-        // HTTP request to the API
-        $response = wp_remote_get($url);
 
-        // Check if the request was successful
-        if (is_wp_error($response)) {
-            return; // Skip to the next URL in case of an error
-        }
+            $data = json_encode(array('query' => $graphql_body));
+            $response = wp_remote_post($api_url, array(
+                'body' => $data,
+                'headers' => array(
+                    'Content-Type' => 'application/json',
+                ),
+            ));
 
-        // Parse the JSON response
-        $posts = json_decode(wp_remote_retrieve_body($response), true);
+            if (is_wp_error($response)) {
+                $error_message = $response->get_error_message();
 
-        // Fetch all pages of results
-        $news_items = $this->fetch_all_pages($url, $posts);
-
-        foreach ($news_items as $item) {
-
-            if (in_array($item['status'], $status_ignorelist)) {
-                continue;
+                $this->log("Something went wrong: $error_message");
+                return;
+            } else {
+                // Handle the response
+                $response_body = wp_remote_retrieve_body($response);
+                $this->log("Response received");
             }
 
-            if (!$dryrun) {
-                // Erstellen eines neuen Beitrags für jede Sprache.
-                $post_id = $this->create_post($item);
+            $response = json_decode($response['body'], true);
+
+            while (is_array($response)) {
+                if (key_exists('posts', $response)) {
+                    $response = reset($response);
+                    break;
+                } else {
+                    $response = reset($response);
+                }
+            }
+
+
+            foreach ($response as $item) {
+
+                $post_data = [];
+                if (!empty($item["post"]['content'])) {
+                    $post_data['post_content'] = $item["post"]['content'];
+                }
+                if (!empty($item["post"]['excerpt'])) {
+                    $post_data['post_excerpt'] = $item["post"]['excerpt'];
+                }
+                if (!empty($item["post"]['title'])) {
+                    $post_data['post_title'] = $item["post"]['title'];
+                }
+                if (!empty($item['date'])) {
+                    $post_data['post_date'] = $item['date'];
+                }
+                if (!empty($item['url']) && !empty($item['import_id'])) {
+                    $post_data['meta_input'] = array(
+                        'import_link' => $item['url'],
+                        'import_id' => $item['import_id']);
+                }
+                if (!empty($item['categories'])) {
+                    $post_data['categories'] = $item['categories'];
+                }
+                if (!empty($item['tags'])) {
+                    $post_data['tags'] = $item['tags'];
+                }
+                if (!empty($item['image'])) {
+                    $post_data['featured_media'] = $item['image'];
+                }
+                $post_data['post_author'] = 1;
+                $post_data['post_status'] = 'publish';
+                $post_data['post_type'] = 'newsletter-post';
+
+
+                $post_id = $this->create_post($post_data, $logging);
 
                 // Execute Term Mapping or add default Term
-                if (count($term_mapping)) {
-                    foreach ($term_mapping as $term) {
-                        if (!empty($term['default_term']) && !empty($term['target_tax'])) {
-                            if (!empty($term['source_tax']) && array_key_exists($term['source_tax'], $item)) {
-                                wp_set_post_terms($post_id, $item[$term['source_tax']], $term['target_tax']);
-                            } else {
-                                wp_set_post_terms($post_id, $term['default_term'], $term['source_tax']);
-                            }
-                        }
+                $this->term_mapping($post_id, $term_mapping, $post_data);
 
-                    }
-                }
                 $posts[] = $post_id;
             }
 
-        }
 
-        $this->log('Importvorgang abgeschlossen.');
+        }
+//        else {
+//            $this->log('Start des Importvorgangs.', $logging);
+//
+//            $url = sanitize_url($api_url);
+//
+//            // HTTP request to the API
+//            $response = wp_remote_get($url);
+//
+//            // Check if the request was successful
+//            if (is_wp_error($response)) {
+//
+//                $this->log($response, $logging);
+//                return; // Skip to the next URL in case of an error
+//            }
+//
+//            // Parse the JSON response
+//            $posts = json_decode(wp_remote_retrieve_body($response), true);
+//
+//            // Fetch all pages of results
+//            $news_items = $this->fetch_all_pages($url, $posts);
+//
+//            foreach ($news_items as $item) {
+//
+//                if (in_array($item['status'], $status_ignorelist)) {
+//                    continue;
+//                }
+//
+//                if (!$dryrun) {
+//                    // Erstellen eines neuen Beitrags für jede Sprache.
+//
+//                    $post_data = array(
+//                        'post_author' => 1, // oder einen dynamischen Autor
+//                        'post_content' => $item['content']['rendered'],
+//                        'post_date' => $item['date'],
+//                        'post_title' => $item['title']['rendered'],
+//                        'post_status' => 'publish',
+//                        'post_type' => 'newsletter-post',
+//                        'meta_input' => array(
+//                            'import_link' => $item['link'],
+//                            'import_id' => $item['id'], // oder eine andere eindeutige ID
+//                        ),
+//                        'categories' => $item['categories'],
+//                        'tags' => $item['tags'],
+//                        'featured_media' => $item['featured_media'],
+//                    );
+//
+//
+//                    $post_id = $this->create_post($post_data, $logging);
+//
+//                    // Execute Term Mapping or add default Term
+//
+//                    $this->term_mapping($post_id, $term_mapping, $item);
+//
+//                    $posts[] = $post_id;
+//                }
+//
+//            }
+//        }
+
+        $this->log('Importvorgang abgeschlossen.', $logging);
         return $posts;
+
+
     }
 
-    private function log($message)
+    private function log($message, $log = true)
     {
-        $log_file = WP_CONTENT_DIR . '/rpi_post_importer_log.txt'; // Pfad zur Log-Datei
-        $timestamp = current_time('mysql');
-        $entry = "{$timestamp}: {$message}\n";
+        if ($log) {
 
-        file_put_contents($log_file, $entry, FILE_APPEND);
+            $log_file = WP_CONTENT_DIR . '/rpi_post_importer_log.txt'; // Pfad zur Log-Datei
+            $timestamp = current_time('mysql');
+            $entry = "{$timestamp}: {$message}\n";
+
+            file_put_contents($log_file, $entry, FILE_APPEND);
+        }
     }
 
-    public function fetch_all_pages($api_url, $data, $page = 1)
+    private function create_post($item, $logging)
     {
-        $per_page = 10; // Number of items per page
-        $args = array(
-            'per_page' => $per_page,
-            'page' => $page,
-        );
 
-        $request_url = add_query_arg($args, $api_url);
-        $response = wp_remote_get($request_url);
+        if (!empty($item['post_title']) && !empty($item['post_content'])) {
+            // Annahme: $item enthält alle notwendigen Informationen
 
-        if (is_wp_error($response)) {
-            return $data; // Return existing data if request fails
+            $this->log("Trying to create Post : " . var_export($item, true), $logging);
+            // Erstellen des Beitrags
+            $post_id = wp_insert_post($item, true);
+            if (is_wp_error($post_id)) {
+                $this->log($post_id->get_error_message(), $logging);
+                return false;
+            }
+            // Überprüfen, ob der Beitrag erfolgreich erstellt wurde.
+            if ($post_id && !is_wp_error($post_id)) {
+
+                // Medieninhalte hinzufügen
+                if (!empty($item['featured_media'])) {
+                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
+                    $this->import_media($item['featured_media']['url']);
+                    $this->log('Media Imported');
+
+                }
+
+                // Kategorien und Tags hinzufügen
+                if (!empty($item['categories'])) {
+
+                    $this->assign_terms($post_id, $item['categories'], 'category');
+                }
+                if (!empty($item['tags'])) {
+                    $this->assign_terms($post_id, $item['tags'], 'post_tag');
+                }
+
+
+                $this->log("Beitrag erstellt: '{$item['post_title']}'", $logging);
+
+            }
+
+            return $post_id;
+        } else {
+            return false;
         }
 
-        $next = json_decode(wp_remote_retrieve_body($response), true);
-        $data = array_merge($data, $next);
-
-        // Check if there are more pages to fetch
-        if (count($next) == $per_page) {
-            $page++;
-            $data = $this->fetch_all_pages($api_url, $data, $page); // Recursively fetch next page
-        }
-
-        return $data;
-    }
-
-    private function create_post($item)
-    {
-        // Annahme: $item enthält alle notwendigen Informationen
-        $post_data = array(
-            'post_author' => 1, // oder einen dynamischen Autor
-            'post_content' => $item['content']['rendered'],
-            'post_title' => $item['title']['rendered'],
-            'post_status' => 'publish',
-            'post_type' => 'newsletter-post',
-            'meta_input' => array(
-                'import_id' => $item['id'], // oder eine andere eindeutige ID
-            ),
-        );
-
-        // Erstellen des Beitrags
-        $post_id = wp_insert_post($post_data);
-
-        // Überprüfen, ob der Beitrag erfolgreich erstellt wurde.
-        if ($post_id && !is_wp_error($post_id)) {
-
-            if (!empty($item['link'])) {
-
-            }
-
-            // Medieninhalte hinzufügen
-            if (!empty($item['featured_media'])) {
-                $this->import_media($item['featured_media'], $post_id);
-            }
-
-            // Kategorien und Tags hinzufügen
-            if (!empty($item['categories'])) {
-                $this->assign_terms($post_id, $item['categories'], 'category');
-            }
-            if (!empty($item['tags'])) {
-                $this->assign_terms($post_id, $item['tags'], 'post_tag');
-            }
-
-
-            $this->log("Beitrag erstellt: '{$post_data['post_title']}'");
-
-        }
-
-        return $post_id;
     }
 
     private function import_media($media_url)
@@ -207,6 +279,49 @@ class RPIPostImporter
 
         // Gibt die ID des neu erstellten Terms zurück.
         return $new_term['term_id'];
+    }
+
+    private function term_mapping($post_id, $term_mapping, $item)
+    {
+        if (is_array($term_mapping)) {
+            foreach ($term_mapping as $term) {
+                if (!empty($term['default_term']) && !empty($term['target_tax'])) {
+                    if (!empty($term['source_tax']) && array_key_exists($term['source_tax'], $item)) {
+                        wp_set_post_terms($post_id, $item[$term['source_tax']], $term['target_tax']);
+                    } else {
+                        wp_set_post_terms($post_id, $term['default_term'], $term['source_tax']);
+                    }
+                }
+
+            }
+        }
+    }
+
+    public function fetch_all_pages($api_url, $data, $page = 1)
+    {
+        $per_page = 10; // Number of items per page
+        $args = array(
+            'per_page' => $per_page,
+            'page' => $page,
+        );
+
+        $request_url = add_query_arg($args, $api_url);
+        $response = wp_remote_get($request_url);
+
+        if (is_wp_error($response)) {
+            return $data; // Return existing data if request fails
+        }
+
+        $next = json_decode(wp_remote_retrieve_body($response), true);
+        $data = array_merge($data, $next);
+
+        // Check if there are more pages to fetch
+        if (count($next) == $per_page) {
+            $page++;
+            $data = $this->fetch_all_pages($api_url, $data, $page); // Recursively fetch next page
+        }
+
+        return $data;
     }
 
 
