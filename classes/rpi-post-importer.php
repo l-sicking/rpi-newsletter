@@ -25,7 +25,7 @@ class RPIPostImporter
                 $error_message = $response->get_error_message();
 
                 $this->log("Something went wrong: $error_message");
-                return;
+                return false;
             } else {
                 // Handle the response
                 $response_body = wp_remote_retrieve_body($response);
@@ -45,6 +45,7 @@ class RPIPostImporter
 
 
             foreach ($response as $item) {
+
 
                 $post_data = [];
                 if (!empty($item["post"]['content'])) {
@@ -75,10 +76,26 @@ class RPIPostImporter
                 }
                 $post_data['post_author'] = 1;
                 $post_data['post_status'] = 'publish';
-                $post_data['post_type'] = 'newsletter-post';
+                $post_data['post_type'] = 'post';
 
+                if (isset($item['import_id'])) {
+                    $existing_post = get_posts([
+                        'meta_query' => array(
+                            array(
+                                'key' => 'import_id',
+                                'value' => $item['import_id'],
+                            )
+                        )
+                    ]);
+                    if (count($existing_post) < 0) {
+                        $existing_post = reset($existing_post);
+                        $this->log("Imported Post $existing_post->ID already exists updating ...");
 
-                $post_id = $this->create_post($post_data, $logging);
+                        $post_id = $this->create_post($post_data, true, $logging);
+                    } else {
+                        $post_id = $this->create_post($post_data, false, $logging);
+                    }
+                }
 
                 // Execute Term Mapping or add default Term
                 $this->term_mapping($post_id, $term_mapping, $post_data);
@@ -165,7 +182,7 @@ class RPIPostImporter
         }
     }
 
-    private function create_post($item, $logging)
+    private function create_post($item, $update = false, $logging = true)
     {
 
         if (!empty($item['post_title']) && !empty($item['post_content'])) {
@@ -182,13 +199,14 @@ class RPIPostImporter
             if ($post_id && !is_wp_error($post_id)) {
 
                 // Medieninhalte hinzufügen
-                /// TODO Media import not working
-//                if (!empty($item['featured_media'])) {
-//                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
-//                    $this->import_media($item['featured_media']['url'], $post_id);
-//                    $this->log('Media Imported');
-//
-//                }
+
+
+                if (!empty($item['featured_media']) && !$update) {
+                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
+                    $this->import_media($item['featured_media']['url'], $post_id);
+                    $this->log('Media Imported');
+
+                }
 
                 // Kategorien und Tags hinzufügen
                 if (!empty($item['categories'])) {
@@ -203,7 +221,7 @@ class RPIPostImporter
 
                 }
 
-                $this->log("Beitrag erstellt: '{$item['post_title']}'", $logging);
+                $this->log("Beitrag (ID: $post_id) erstellt: '{$item['post_title']}'", $logging);
 
             }
 
@@ -239,17 +257,85 @@ class RPIPostImporter
         );
         $this->log(var_export($file, true));
 
-        // Die Datei wird der Medienbibliothek hinzugefügt.
-        $media_id = media_handle_sideload($file, $post_id);
+
+        if (!function_exists('media_handle_sideload')) {
+            $this->log('function media_handle_sideload not found, using wp_insert_attachment instead');
+
+            $attachment_id = $this->wp_insert_attachment_from_url($media_url, $post_id);
+
+            if (!$attachment_id) {
+                $this->log("Attachment of '$media_url' to Post '$post_id' failed");
+                return false;
+
+                ///TODO  check logging var
+            } else {
+                set_post_thumbnail($post_id, $attachment_id);
+                $this->log("Added Thumbnail of '$media_url' to '$post_id', with '$attachment_id'");
+            }
+
+        } else {
+
+
+            // Die Datei wird der Medienbibliothek hinzugefügt.
+            $media_id = media_handle_sideload($file, $post_id);
+        }
 
 
         if (is_wp_error($media_id)) {
-            $this->log('Media import Failed'. $media_id->get_error_message());
+            $this->log('Media import Failed' . $media_id->get_error_message());
             @unlink($temp_file);
             return null;
         }
 
         return $media_id;
+    }
+
+    function wp_insert_attachment_from_url($url, $parent_post_id = null)
+    {
+
+        if (!class_exists('WP_Http')) {
+            require_once ABSPATH . WPINC . '/class-http.php';
+        }
+
+        $http = new WP_Http();
+        $response = $http->request($url);
+        if (200 !== $response['response']['code']) {
+            return false;
+        }
+
+        $upload = wp_upload_bits(basename($url), null, $response['body']);
+        if (!empty($upload['error'])) {
+            return false;
+        }
+
+        $file_path = $upload['file'];
+        $file_name = basename($file_path);
+        $file_type = wp_check_filetype($file_name, null);
+        $attachment_title = sanitize_file_name(pathinfo($file_name, PATHINFO_FILENAME));
+        $wp_upload_dir = wp_upload_dir();
+
+        $post_info = array(
+            'guid' => $wp_upload_dir['url'] . '/' . $file_name,
+            'post_mime_type' => $file_type['type'],
+            'post_title' => $attachment_title,
+            'post_content' => '',
+            'post_status' => 'inherit',
+        );
+
+        // Create the attachment.
+        $attach_id = wp_insert_attachment($post_info, $file_path, $parent_post_id);
+
+        // Include image.php.
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        // Generate the attachment metadata.
+        $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
+
+        // Assign metadata to attachment.
+        wp_update_attachment_metadata($attach_id, $attach_data);
+
+        return $attach_id;
+
     }
 
     private function assign_terms($post_id, $term_ids, $taxonomy)

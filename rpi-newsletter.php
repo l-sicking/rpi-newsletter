@@ -36,13 +36,13 @@ class RpiNewsletter
         // Populate the custom columns with data
         add_action('manage_newsletter-post_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
-        add_action('template_redirect', [$this, 'redirect_to_origin_page']);
+        add_filter('the_content', [$this, 'redirect_to_origin_page']);
 
     }
 
     function redirect_to_origin_page()
     {
-        if (is_single() && get_post_type() === 'newsletter_post') {
+        if (is_single() && get_post_type() === 'post' && !is_admin()) {
             $origin_link = get_post_meta(get_the_ID(), 'import_link', true);
             if (!empty($origin_link)) {
                 wp_redirect($origin_link);
