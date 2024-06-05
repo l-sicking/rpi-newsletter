@@ -91,13 +91,11 @@ class RPIPostImporter
                         $existing_post = reset($existing_post);
                         $this->log("Imported Post $existing_post->ID already exists updating ...");
 
-                        if (!$dryrun)
-                        {
+                        if (!$dryrun) {
                             $post_id = $this->create_post($post_data, true, $logging);
                         }
                     } else {
-                        if (!$dryrun)
-                        {
+                        if (!$dryrun) {
                             $post_id = $this->create_post($post_data, false, $logging);
                         }
                     }
@@ -105,13 +103,13 @@ class RPIPostImporter
 
                 // Execute Term Mapping or add default Term
                 $this->term_mapping($post_id, $term_mapping, $post_data);
-
-                $posts[] = $post_id;
+                if ($post_id) {
+                    $posts[] = $post_id;
+                }
             }
 
 
-        }
-        else {
+        } else {
             $this->log('Start des Importvorgangs.', $logging);
 
             $url = sanitize_url($api_url);

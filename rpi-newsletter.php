@@ -142,9 +142,12 @@ class RpiNewsletter
 
             $importer = new RPIPostImporter();
 
+            $post_ids = [];
+
             foreach ($api_urls as $api_url) {
-                ///TODO: add check if false to verify no errors in rpi_import_post if false log error or abort
-                $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
+                if (!empty($api_url)) {
+                    $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
+                }
             }
             RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
 
