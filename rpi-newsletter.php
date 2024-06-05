@@ -97,6 +97,13 @@ class RpiNewsletter
         foreach ($instances as $instance) {
             $api_url = get_post_meta($instance->ID, 'api_url', true);
 
+            while (have_rows('api_urls')): the_row();
+                $url = get_sub_field('api_url');
+                if (wp_http_validate_url($url))
+                    $api_urls [] = $url;
+            endwhile;
+
+
             // Loop through rows.
             while (have_rows('status_ignorelist')) : the_row();
 
@@ -135,7 +142,10 @@ class RpiNewsletter
 
             $importer = new RPIPostImporter();
 
-            $post_ids = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body);
+            foreach ($api_urls as $api_url) {
+                ///TODO: add check if false to verify no errors in rpi_import_post if false log error or abort
+                $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
+            }
             RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
 
             foreach ($post_ids as $post_id) {

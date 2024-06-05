@@ -91,9 +91,15 @@ class RPIPostImporter
                         $existing_post = reset($existing_post);
                         $this->log("Imported Post $existing_post->ID already exists updating ...");
 
-                        $post_id = $this->create_post($post_data, true, $logging);
+                        if (!$dryrun)
+                        {
+                            $post_id = $this->create_post($post_data, true, $logging);
+                        }
                     } else {
-                        $post_id = $this->create_post($post_data, false, $logging);
+                        if (!$dryrun)
+                        {
+                            $post_id = $this->create_post($post_data, false, $logging);
+                        }
                     }
                 }
 
@@ -105,64 +111,64 @@ class RPIPostImporter
 
 
         }
-//        else {
-//            $this->log('Start des Importvorgangs.', $logging);
-//
-//            $url = sanitize_url($api_url);
-//
-//            // HTTP request to the API
-//            $response = wp_remote_get($url);
-//
-//            // Check if the request was successful
-//            if (is_wp_error($response)) {
-//
-//                $this->log($response, $logging);
-//                return; // Skip to the next URL in case of an error
-//            }
-//
-//            // Parse the JSON response
-//            $posts = json_decode(wp_remote_retrieve_body($response), true);
-//
-//            // Fetch all pages of results
-//            $news_items = $this->fetch_all_pages($url, $posts);
-//
-//            foreach ($news_items as $item) {
-//
-//                if (in_array($item['status'], $status_ignorelist)) {
-//                    continue;
-//                }
-//
-//                if (!$dryrun) {
-//                    // Erstellen eines neuen Beitrags für jede Sprache.
-//
-//                    $post_data = array(
-//                        'post_author' => 1, // oder einen dynamischen Autor
-//                        'post_content' => $item['content']['rendered'],
-//                        'post_date' => $item['date'],
-//                        'post_title' => $item['title']['rendered'],
-//                        'post_status' => 'publish',
-//                        'post_type' => 'newsletter-post',
-//                        'meta_input' => array(
-//                            'import_link' => $item['link'],
-//                            'import_id' => $item['id'], // oder eine andere eindeutige ID
-//                        ),
-//                        'categories' => $item['categories'],
-//                        'tags' => $item['tags'],
-//                        'featured_media' => $item['featured_media'],
-//                    );
-//
-//
-//                    $post_id = $this->create_post($post_data, $logging);
-//
-//                    // Execute Term Mapping or add default Term
-//
-//                    $this->term_mapping($post_id, $term_mapping, $item);
-//
-//                    $posts[] = $post_id;
-//                }
-//
-//            }
-//        }
+        else {
+            $this->log('Start des Importvorgangs.', $logging);
+
+            $url = sanitize_url($api_url);
+
+            // HTTP request to the API
+            $response = wp_remote_get($url);
+
+            // Check if the request was successful
+            if (is_wp_error($response)) {
+
+                $this->log($response, $logging);
+                return; // Skip to the next URL in case of an error
+            }
+
+            // Parse the JSON response
+            $posts = json_decode(wp_remote_retrieve_body($response), true);
+
+            // Fetch all pages of results
+            $news_items = $this->fetch_all_pages($url, $posts);
+
+            foreach ($news_items as $item) {
+
+                if (in_array($item['status'], $status_ignorelist)) {
+                    continue;
+                }
+
+                if (!$dryrun) {
+                    // Erstellen eines neuen Beitrags für jede Sprache.
+
+                    $post_data = array(
+                        'post_author' => 1, // oder einen dynamischen Autor
+                        'post_content' => $item['content']['rendered'],
+                        'post_date' => $item['date'],
+                        'post_title' => $item['title']['rendered'],
+                        'post_status' => 'publish',
+                        'post_type' => 'newsletter-post',
+                        'meta_input' => array(
+                            'import_link' => $item['link'],
+                            'import_id' => $item['id'], // oder eine andere eindeutige ID
+                        ),
+                        'categories' => $item['categories'],
+                        'tags' => $item['tags'],
+                        'featured_media' => $item['featured_media'],
+                    );
+
+
+                    $post_id = $this->create_post($post_data, $logging);
+
+                    // Execute Term Mapping or add default Term
+
+                    $this->term_mapping($post_id, $term_mapping, $item);
+
+                    $posts[] = $post_id;
+                }
+
+            }
+        }
 
         $this->log('Importvorgang abgeschlossen.', $logging);
         return $posts;
@@ -261,6 +267,8 @@ class RPIPostImporter
         if (!function_exists('media_handle_sideload')) {
             $this->log('function media_handle_sideload not found, using wp_insert_attachment instead');
 
+
+            //TODO  ad logic to import attachment meta like description etc. to inserted attachment
             $attachment_id = $this->wp_insert_attachment_from_url($media_url, $post_id);
 
             if (!$attachment_id) {
