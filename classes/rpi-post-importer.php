@@ -8,6 +8,7 @@ class RPIPostImporter
 
         $posts = [];
 
+        $this->log('Graphql ' . var_export($graphql, true));
         if ($graphql) {
 
             $this->log('Start des Graphql Importvorgangs.', $logging);
@@ -79,18 +80,20 @@ class RPIPostImporter
                 $post_data['post_type'] = 'post';
 
                 if (isset($item['import_id'])) {
+                    $this->log('import id found : '. $item['import_id']);
                     $existing_post = get_posts([
                         'meta_query' => array(
                             array(
                                 'key' => 'import_id',
                                 'value' => $item['import_id'],
+                                'compare' => '=',
                             )
                         )
                     ]);
-                    if (count($existing_post) < 0) {
+                    if (count($existing_post) > 0) {
                         $existing_post = reset($existing_post);
                         $this->log("Imported Post $existing_post->ID already exists updating ...");
-
+                        $post_data['ID'] = $existing_post->ID;
                         if (!$dryrun) {
                             $post_id = $this->create_post($post_data, true, $logging);
                         }
@@ -128,44 +131,67 @@ class RPIPostImporter
             $posts = json_decode(wp_remote_retrieve_body($response), true);
 
             // Fetch all pages of results
-            $news_items = $this->fetch_all_pages($url, $posts);
+//            $news_items = $this->fetch_all_pages($url, $posts);
 
-            foreach ($news_items as $item) {
+            foreach ($posts as $item) {
 
                 if (in_array($item['status'], $status_ignorelist)) {
                     continue;
                 }
 
-                if (!$dryrun) {
-                    // Erstellen eines neuen Beitrags für jede Sprache.
+                // Erstellen eines neuen Beitrags für jede Sprache.
 
-                    $post_data = array(
-                        'post_author' => 1, // oder einen dynamischen Autor
-                        'post_content' => $item['content']['rendered'],
-                        'post_date' => $item['date'],
-                        'post_title' => $item['title']['rendered'],
-                        'post_status' => 'publish',
-                        'post_type' => 'newsletter-post',
-                        'meta_input' => array(
-                            'import_link' => $item['link'],
-                            'import_id' => $item['id'], // oder eine andere eindeutige ID
-                        ),
-                        'categories' => $item['categories'],
-                        'tags' => $item['tags'],
-                        'featured_media' => $item['featured_media'],
-                    );
+                $post_data = array(
+                    'post_author' => 1, // oder einen dynamischen Autor
+                    'post_content' => $item['content']['rendered'],
+                    'post_date' => $item['date'],
+                    'post_title' => $item['title']['rendered'],
+                    'post_status' => 'publish',
+                    'post_type' => 'post',
+                    'meta_input' => array(
+                        'import_link' => $item['link'],
+                        'import_id' => $item['id'], // oder eine andere eindeutige ID
+                    ),
+                    'categories' => $item['categories'],
+                    'tags' => $item['tags'],
+                    'featured_media' => $item['featured_media'],
+                );
 
+                if (isset($item['id'])) {
+                    $existing_post = get_posts([
+                        'meta_query' => array(
+                            array(
+                                'key' => 'import_id',
+                                'value' => $item['id'],
+                                'compare' => '=',
+                            )
+                        )
+                    ]);
+                    if (count($existing_post) > 0) {
+                        $existing_post = reset($existing_post);
+                        $this->log("Imported Post $existing_post->ID already exists updating ...");
 
-                    $post_id = $this->create_post($post_data, $logging);
+                        $post_data['ID'] = $existing_post->ID;
+                        if (!$dryrun) {
+                            $post_id = $this->create_post($post_data, true, $logging);
+                        }
+                    } else {
+                        if (!$dryrun) {
+                            $post_id = $this->create_post($post_data, false, $logging);
 
-                    // Execute Term Mapping or add default Term
-
-                    $this->term_mapping($post_id, $term_mapping, $item);
-
-                    $posts[] = $post_id;
+                        }
+                    }
                 }
 
+
+                // Execute Term Mapping or add default Term
+
+                $this->term_mapping($post_id, $term_mapping, $item);
+
+                $posts[] = $post_id;
             }
+
+
         }
 
         $this->log('Importvorgang abgeschlossen.', $logging);

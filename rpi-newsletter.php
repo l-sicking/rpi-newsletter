@@ -33,20 +33,22 @@ class RpiNewsletter
         add_action('manage_instanz_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
         add_filter('manage_newsletter-post_posts_columns', [$this, 'add_custom_columns']);
-        // Populate the custom columns with data
+//         Populate the custom columns with data
         add_action('manage_newsletter-post_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
         add_filter('the_content', [$this, 'redirect_to_origin_page']);
 
     }
 
-    function redirect_to_origin_page()
+    function redirect_to_origin_page($content)
     {
         if (is_single() && get_post_type() === 'post' && !is_admin()) {
             $origin_link = get_post_meta(get_the_ID(), 'import_link', true);
             if (!empty($origin_link)) {
                 wp_redirect($origin_link);
             }
+        } else {
+            return $content;
         }
     }
 
@@ -78,6 +80,8 @@ class RpiNewsletter
     public function test()
     {
         ob_start();
+
+        echo 'Shortcode Triggered';
         $this->getAllInstancesAndImportPosts();
         return ob_get_clean();
     }
@@ -103,15 +107,6 @@ class RpiNewsletter
                     $api_urls [] = $url;
             endwhile;
 
-
-            // Loop through rows.
-            while (have_rows('status_ignorelist')) : the_row();
-
-                // Load sub field value.
-                $status_ignorelist[] = get_sub_field('status_name');
-
-                // End loop.
-            endwhile;
 
             $standard_terms = get_post_meta($instance->ID, 'standard_terms', true);
             $standard_user = get_post_meta($instance->ID, 'standard_user', true);
@@ -139,16 +134,12 @@ class RpiNewsletter
 
 
             RpiNewsletter::log("Processing instance ID {$instance->ID} with API URL {$api_url}", $debugmode);
-
-            $importer = new RPIPostImporter();
-
             $post_ids = [];
 
-            foreach ($api_urls as $api_url) {
-                if (!empty($api_url)) {
-                    $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
-                }
-            }
+            $importer = new RPIPostImporter();
+            $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
+
+
             RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
 
             foreach ($post_ids as $post_id) {
