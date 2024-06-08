@@ -124,7 +124,7 @@ class RPIPostImporter
             if (is_wp_error($response)) {
 
                 $this->log($response, $logging);
-                return; // Skip to the next URL in case of an error
+                return false; // Skip to the next URL in case of an error
             }
 
             // Parse the JSON response
@@ -154,8 +154,17 @@ class RPIPostImporter
                     ),
                     'categories' => $item['categories'],
                     'tags' => $item['tags'],
-                    'featured_media' => $item['featured_media'],
                 );
+
+                if (is_url($item['featured_media']))
+                {
+                    $post_data['featured_media'] = $item['featured_media'];
+                }
+                elseif(!empty($item['featured_media']) && key_exists('_links', $item))
+                {
+                   $post_data['featured_media'] = reset($item['_links']['wp:featuredmedia'])['href'];
+                   //TODO assign to new key in post_data to signal import via wp-json route
+                }
 
                 if (isset($item['id'])) {
                     $existing_post = get_posts([
@@ -167,6 +176,7 @@ class RPIPostImporter
                             )
                         )
                     ]);
+                    //TODO this code can be exported into a function
                     if (count($existing_post) > 0) {
                         $existing_post = reset($existing_post);
                         $this->log("Imported Post $existing_post->ID already exists updating ...");
@@ -233,7 +243,7 @@ class RPIPostImporter
 
                 if (!empty($item['featured_media']) && !$update) {
                     $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
-                    $this->import_media($item['featured_media']['url'], $post_id);
+                    $this-> import_media($item['featured_media']['url'], $post_id);
                     $this->log('Media Imported');
 
                 }
@@ -262,7 +272,7 @@ class RPIPostImporter
 
     }
 
-    private function import_media($media_url, $post_id = 0)
+    private function import_media($media_url, $post_id = 0, $wp_json = true)
     {
         if (!$media_url) {
             return null;
@@ -293,7 +303,7 @@ class RPIPostImporter
 
 
             //TODO  ad logic to import attachment meta like description etc. to inserted attachment
-            $attachment_id = $this->wp_insert_attachment_from_url($media_url, $post_id);
+            $attachment_id = $this->wp_insert_attachment_from_url($media_url, $post_id, $wp_json);
 
             if (!$attachment_id) {
                 $this->log("Attachment of '$media_url' to Post '$post_id' failed");
@@ -322,51 +332,67 @@ class RPIPostImporter
         return $media_id;
     }
 
-    function wp_insert_attachment_from_url($url, $parent_post_id = null)
+    function wp_insert_attachment_from_url($url, $parent_post_id = null, $wp_json = true)
     {
+        if ($wp_json)
+        {
 
-        if (!class_exists('WP_Http')) {
-            require_once ABSPATH . WPINC . '/class-http.php';
+            $url = sanitize_url($url);
+
+            // HTTP request to the API
+            $response = wp_remote_get($url);
+
+            $attachments = json_decode(wp_remote_retrieve_body($response), true);
+            foreach ($attachments as $attachment) {
+
+            }
+
+        }
+        else{
+            if (!class_exists('WP_Http')) {
+                require_once ABSPATH . WPINC . '/class-http.php';
+            }
+
+            $http = new WP_Http();
+            $response = $http->request($url);
+            if (200 !== $response['response']['code']) {
+                return false;
+            }
+
+            $upload = wp_upload_bits(basename($url), null, $response['body']);
+            if (!empty($upload['error'])) {
+                return false;
+            }
+
+            $file_path = $upload['file'];
+            $file_name = basename($file_path);
+            $file_type = wp_check_filetype($file_name, null);
+            $attachment_title = sanitize_file_name(pathinfo($file_name, PATHINFO_FILENAME));
+            $wp_upload_dir = wp_upload_dir();
+
+            $post_info = array(
+                'guid' => $wp_upload_dir['url'] . '/' . $file_name,
+                'post_mime_type' => $file_type['type'],
+                'post_title' => sanitize_text_field( $attachment_title ),
+                'post_status' => 'inherit',
+            );
+
+            // Create the attachment.
+            $attach_id = wp_insert_attachment($post_info, $file_path, $parent_post_id);
+
+            // Include image.php.
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+
+            // Generate the attachment metadata.
+            $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
+
+            // Assign metadata to attachment.
+            wp_update_attachment_metadata($attach_id, $attach_data);
+
+            return $attach_id;
         }
 
-        $http = new WP_Http();
-        $response = $http->request($url);
-        if (200 !== $response['response']['code']) {
-            return false;
-        }
 
-        $upload = wp_upload_bits(basename($url), null, $response['body']);
-        if (!empty($upload['error'])) {
-            return false;
-        }
-
-        $file_path = $upload['file'];
-        $file_name = basename($file_path);
-        $file_type = wp_check_filetype($file_name, null);
-        $attachment_title = sanitize_file_name(pathinfo($file_name, PATHINFO_FILENAME));
-        $wp_upload_dir = wp_upload_dir();
-
-        $post_info = array(
-            'guid' => $wp_upload_dir['url'] . '/' . $file_name,
-            'post_mime_type' => $file_type['type'],
-            'post_title' => $attachment_title,
-            'post_content' => '',
-            'post_status' => 'inherit',
-        );
-
-        // Create the attachment.
-        $attach_id = wp_insert_attachment($post_info, $file_path, $parent_post_id);
-
-        // Include image.php.
-        require_once ABSPATH . 'wp-admin/includes/image.php';
-
-        // Generate the attachment metadata.
-        $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
-
-        // Assign metadata to attachment.
-        wp_update_attachment_metadata($attach_id, $attach_data);
-
-        return $attach_id;
 
     }
 
