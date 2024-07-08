@@ -19,7 +19,6 @@ if (!defined('ABSPATH')) {
 class RpiNewsletter
 {
 
-
     public function __construct()
     {
         add_action('cron_post_import_newsletter', [$this, 'getAllInstancesAndImportPosts']);
