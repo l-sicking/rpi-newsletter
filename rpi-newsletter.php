@@ -23,6 +23,7 @@ class RpiNewsletter
     {
         add_action('cron_post_import_newsletter', [$this, 'getAllInstancesAndImportPosts']);
         add_action('save_post', [$this, 'addInstanceTermOnSave'], 10, 3);
+        //TODO delete this and function if development is finished
         add_shortcode('post_import_newsletter', [$this, 'test']);
 
 
@@ -136,14 +137,28 @@ class RpiNewsletter
             $post_ids = [];
 
             $importer = new RPIPostImporter();
-            $post_ids = array_merge($post_ids, $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body));
+            $result = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body);
 
+            if ($result) {
+                if (is_array($result)) {
+                    foreach ($result as $key => $value) {
+                        if (key_exists('id', $value)) {
+                            $result[$key] = $value['id'];
+                        }
+                    }
+                    RpiNewsletter::log('Array as Result detected : ' . var_export($result, true));
+                }
+                $post_ids = array_merge($post_ids, $result);
+
+
+            }
 
             RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
 
             foreach ($post_ids as $post_id) {
                 if (!empty($standard_user)) {
-                    $post_arr = ['post_author' => $standard_user];
+
+                    $post_arr = ['ID' => $post_id, 'post_author' => $standard_user];
                     $result = wp_update_post($post_arr, true);
 
                     if (is_wp_error($result)) {
