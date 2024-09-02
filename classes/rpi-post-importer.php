@@ -169,7 +169,7 @@ class RPIPostImporter
                 );
 
                 $this->log('looking for media links');
-                if (wp_http_validate_url($item['featured_media'])) {
+                if (wp_http_validate_url($item['featured_media']) || filter_var($url, FILTER_VALIDATE_URL)) {
                     $post_data['featured_media'] = $item['featured_media'];
                     $this->log('media links found under featured_media');
                 } elseif (!empty($item['featured_media']) && key_exists('_links', $item)) {
@@ -181,6 +181,8 @@ class RPIPostImporter
                     } else {
                         $post_data['featured_media'][] = reset($item['_links']['wp:featuredmedia'])['href'];
                     }
+                } else {
+                    $this->log('Found no valid media aborting media import ... ' . var_export($item['featured_media'], true));
                 }
 
                 if (isset($item['id'])) {
@@ -281,6 +283,7 @@ class RPIPostImporter
                 if (!empty($item['featured_media']) && !$update) {
                     $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
                     if (key_exists('url', $item['featured_media'])) {
+                        $this->log('Importing via url in featured media');
                         $media_id = $this->import_media($item['featured_media']['url'], $post_id, false);
 
                     } else {
