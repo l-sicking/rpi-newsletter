@@ -99,14 +99,16 @@ class RpiNewsletter
         RpiNewsletter::log('Found ' . count($instances) . ' instances to process.');
 
         foreach ($instances as $instance) {
+            RpiNewsletter::log('Processing instance "' . $instance->post_title . '"');
             $api_url = get_post_meta($instance->ID, 'api_url', true);
+            while (have_rows('api_urls', $instance->ID)): the_row();
+                $url = get_sub_field('sub_api_url');
+                RpiNewsletter::log('Currently looking for urls in instance' . var_export($url, true));
 
-            while (have_rows('api_urls')): the_row();
-                $url = get_sub_field('api_url');
-                if (wp_http_validate_url($url))
+                if (wp_http_validate_url($url) || filter_var($url, FILTER_VALIDATE_URL))
                     $api_urls [] = $url;
             endwhile;
-
+            RpiNewsletter::log('Found ' . count($api_urls) . ' URLs to process.');
 
             $standard_terms = get_post_meta($instance->ID, 'standard_terms', true);
             $standard_user = get_post_meta($instance->ID, 'standard_user', true);
@@ -132,54 +134,56 @@ class RpiNewsletter
                 // End loop.
             endwhile;
 
-
             RpiNewsletter::log("Processing instance ID {$instance->ID} with API URL {$api_url}", $debugmode);
-            $post_ids = [];
 
             $importer = new RPIPostImporter();
-            $result = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body);
+            if (is_array($api_urls) || count($api_urls) > 0) {
+                foreach ($api_urls as $api_url) {
+                    $result = $importer->rpi_import_post($api_url, $status_ignorelist, $term_mapping, $dryrun, $debugmode, $graphql, $graphql_body);
 
-            if ($result) {
-                if (is_array($result)) {
-                    foreach ($result as $key => $value) {
-                        if (key_exists('id', $value)) {
-                            $result[$key] = $value['id'];
+                    if (is_array($result) && count($result) > 0) {
+                        foreach ($result as $value) {
+                            $new_post_id = 0;
+
+                            if (is_array($value)) {
+                                if (key_exists('id', $value)) {
+                                    $new_post_id = $value['id'];
+                                }
+                            } elseif (is_a($value, 'WP_Post')) {
+                                $new_post_id = $value->id;
+
+                            } else {
+                                $new_post_id = $value;
+                            }
+
+
+                            if (!empty($standard_user)) {
+                                $post_arr = ['ID' => $new_post_id, 'post_author' => $standard_user];
+                                $result = wp_update_post($post_arr, true);
+
+                                if (is_wp_error($result)) {
+                                    RpiNewsletter::log("Error updating post author for post ID {$new_post_id}: " . $result->get_error_message(), $debugmode);
+                                } else {
+                                    RpiNewsletter::log("Updated post author for post ID {$new_post_id} to user ID {$standard_user}", $debugmode);
+                                }
+                            }
+
+                            if (empty(wp_get_post_terms($new_post_id, 'term_instanz'))) {
+                                $target_instanz_term = wp_get_post_terms($instance->ID, 'term_instanz', array('fields' => 'ids'));
+                                RpiNewsletter::log("Set Instanz Term of Imported Post : {$new_post_id}: " . implode(', ', $target_instanz_term), $debugmode);
+                                wp_set_post_terms($new_post_id, $target_instanz_term, 'term_instanz', true);
+                            }
+
+                            if (!empty($standard_terms)) {
+                                wp_set_post_terms($new_post_id, $standard_terms, 'post_tag', true);
+                                RpiNewsletter::log("Set Tags for post ID {$new_post_id}: " . implode(', ', $standard_terms), $debugmode);
+                            }
                         }
                     }
-                    RpiNewsletter::log('Array as Result detected : ' . var_export($result, true));
                 }
-                $post_ids = array_merge($post_ids, $result);
-
-
+            } else {
+                RpiNewsletter::log('Found no viable API URLs.', $debugmode);
             }
-
-            RpiNewsletter::log('Imported posts: ' . implode(', ', $post_ids));
-
-            foreach ($post_ids as $post_id) {
-                if (!empty($standard_user)) {
-
-                    $post_arr = ['ID' => $post_id, 'post_author' => $standard_user];
-                    $result = wp_update_post($post_arr, true);
-
-                    if (is_wp_error($result)) {
-                        RpiNewsletter::log("Error updating post author for post ID {$post_id}: " . $result->get_error_message(), $debugmode);
-                    } else {
-                        RpiNewsletter::log("Updated post author for post ID {$post_id} to user ID {$standard_user}", $debugmode);
-                    }
-                }
-
-                if (empty(wp_get_post_terms($post_id, 'term_instanz'))) {
-                    $target_instanz_term = wp_get_post_terms($instance->ID, 'term_instanz', array('fields' => 'ids'));
-                    RpiNewsletter::log("Set Instanz Term of Imported Post : {$post_id}: " . implode(', ', $target_instanz_term), $debugmode);
-                    wp_set_post_terms($post_id, $target_instanz_term, 'term_instanz', true);
-                }
-
-                if (!empty($standard_terms)) {
-                    wp_set_post_terms($post_id, $standard_terms, 'post_tag', true);
-                    RpiNewsletter::log("Set Tags for post ID {$post_id}: " . implode(', ', $standard_terms), $debugmode);
-                }
-            }
-
         }
 
         RpiNewsletter::log('Cron completed');
@@ -198,7 +202,8 @@ class RpiNewsletter
         }
     }
 
-    public function addInstanceTermOnSave($post_id, $post, $update)
+    public
+    function addInstanceTermOnSave($post_id, $post, $update)
     {
 
         if (is_a($post, 'WP_Post') && $post->post_type == 'instanz' && !has_term($post->post_name, 'term_instanz', $post->ID)) {

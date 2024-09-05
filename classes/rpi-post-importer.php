@@ -105,10 +105,13 @@ class RPIPostImporter
                             $post_id = $this->create_post($post_data);
                         }
                     }
+                } else {
+
+                    $this->log('Import ID not found aborting post import');
                 }
-                if (!$dryrun) {
-                    $post_id = $this->create_post($post_data, true);
-                }
+//                if (!$dryrun) {
+//                    $post_id = $this->create_post($post_data, true);
+//                }
                 // Execute Term Mapping or add default Term
                 $this->term_mapping($post_id, $term_mapping, $post_data);
                 if ($post_id && !is_wp_error($post_id)) {
@@ -207,13 +210,12 @@ class RPIPostImporter
                 }
 
                 // Execute Term Mapping or add default Term
+                if (isset($post_id)) {
+                    $this->term_mapping($post_id, $term_mapping, $item);
 
-                $this->term_mapping($post_id, $term_mapping, $item);
-
-                $posts[] = $post_id;
+                    $posts[] = $post_id;
+                }
             }
-
-
         }
 
         $this->log('Importvorgang abgeschlossen.');
@@ -282,7 +284,7 @@ class RPIPostImporter
 
                 if (!empty($item['featured_media']) && !$update) {
                     $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
-                    if (key_exists('url', $item['featured_media'])) {
+                    if (is_array($item['featured_media']) && key_exists('url', $item['featured_media'])) {
                         $this->log('Importing via url in featured media');
                         $media_id = $this->import_media($item['featured_media']['url'], $post_id, false);
 
@@ -314,13 +316,10 @@ class RPIPostImporter
                 }
 
                 $this->log("Beitrag (ID: $post_id) erstellt: '{$item['post_title']}'");
-
+                return $post_id;
             }
-
-            return $post_id;
-        } else {
-            return false;
         }
+        return false;
 
     }
 
@@ -356,6 +355,7 @@ class RPIPostImporter
 
         } else {
             // Der Dateiname wird aus der URL extrahiert.
+            $this->log('Single Media File download via URL' . var_export($media_url, true));
             $file_name = basename($media_url);
 
             $this->log(var_export($file_name, true));
@@ -511,41 +511,51 @@ class RPIPostImporter
 
     }
 
-    private function assign_terms($post_id, $term_ids, $taxonomy)
+    private function assign_terms($post_id, array $term_ids, $taxonomy)
     {
-        foreach ($term_ids as $term_id) {
-            // Namen des Terms aus der Quelle holen
-            $term_name = get_term_by('id', $term_id, $taxonomy)->name;
+        if (taxonomy_exists($taxonomy)) {
+            $this->log('Sanitizing imported post terms');
+//        $term_ids = $this->sanitize_imported_post_terms($term_ids);
 
-            // Term-ID im Zielblog übersetzen
-            $translated_term_id = $this->translate_term_id($term_name, $taxonomy);
-            if ($translated_term_id) {
-                wp_set_object_terms($post_id, $translated_term_id, $taxonomy, true);
+            if (is_array(reset($term_ids))) {
+                $term_ids = array_column(reset($term_ids), 'name');
             }
+            $this->log("Assigning terms with IDs " . var_export($term_ids, true));
+            foreach ($term_ids as $term_id) {
+
+                if (is_numeric($term_id)) {
+                    $this->log('provided Array contains Id Import URL for Terms required');
+                } else {
+                    $existing_term = term_exists($term_id, $taxonomy);
+                    if (!$existing_term) {
+                        $this->log('Provided Term:' . $term_id . ' doesn\'t exist. creating term');
+                        wp_insert_term($term_id, $taxonomy);
+                    }
+                    $new_term = get_term_by('name', $term_id, $taxonomy);
+
+                    $this->log('Passed Term Array ' . var_export($new_term, true));
+                    wp_set_post_terms($post_id, array($new_term->term_id), $taxonomy, true);;
+
+                }
+            }
+
+        } else {
+            $this->log('Error Taxonomy' . $taxonomy . ' does not exist');
         }
-    }
 
-    private function translate_term_id($source_term_name, $taxonomy)
-    {
-        // Überprüfen, ob ein Term mit diesem Namen im Zielblog existiert.
-        $term = get_term_by('name', $source_term_name, $taxonomy);
 
-        // Wenn der Term existiert, gibt die ID zurück.
-        if ($term) {
-            return $term->term_id;
-        }
-
-        // Wenn der Term nicht existiert, erstelle einen neuen Term.
-        $new_term = wp_insert_term($source_term_name, $taxonomy);
-
-        // Überprüfen, ob die Erstellung erfolgreich war.
-        if (is_wp_error($new_term)) {
-            // Fehlerbehandlung, eventuell Logging.
-            return null;
-        }
-
-        // Gibt die ID des neu erstellten Terms zurück.
-        return $new_term['term_id'];
+//        $term_ids = $this->sanitize_imported_post_terms($term_ids);
+//        foreach ($term_ids as $term_id) {
+//            // Namen des Terms aus der Quelle holen
+//            if (is_numeric($term_id)) {
+//                $term_name = get_term_by('id', $term_id, $taxonomy)->name;
+//            }
+//            // Term-ID im Zielblog übersetzen
+//            $translated_term_id = $this->check_term_if_exists_and_create($term_name, $taxonomy);
+//            if (!empty($translated_term_id)) {
+//                wp_set_object_terms($post_id, $translated_term_id, $taxonomy, true);
+//            }
+//        }
     }
 
     private function term_mapping($post_id, $term_mapping, $item)
@@ -589,6 +599,45 @@ class RPIPostImporter
         }
 
         return $data;
+    }
+
+    private function sanitize_imported_post_terms($term_ids)
+    {
+        foreach ($term_ids as $key => $term_id) {
+            if (is_array($term_id)) {
+                array_walk_recursive($term_ids, function ($item, $key) use (&$results) {
+                    $results[$key] = $item;
+                });
+                $term_ids = array_merge($term_ids, $results);
+            } else {
+                $term_ids[$key] = $term_id;
+            }
+        }
+        return $term_ids;
+    }
+
+    private function check_term_if_exists_and_create($source_term_name, $taxonomy)
+    {
+        // Überprüfen, ob ein Term mit diesem Namen im Zielblog existiert.
+        $term = get_term_by('name', $source_term_name, $taxonomy);
+
+        // Wenn der Term existiert, gibt die ID zurück.
+        if (is_a($term, 'WP_Term')) {
+            return $term->term_id;
+        }
+
+        // Wenn der Term nicht existiert, erstelle einen neuen Term.
+        $new_term = wp_insert_term($source_term_name, $taxonomy);
+
+        // Überprüfen, ob die Erstellung erfolgreich war.
+        if (is_wp_error($new_term)) {
+            // Fehlerbehandlung, eventuell Logging.
+            $this->log("Failed to translate term '$source_term_name' to '$taxonomy' " . $new_term->get_error_message());
+            return false;
+        }
+
+        // Gibt die ID des neu erstellten Terms zurück.
+        return $new_term['term_id'];
     }
 
 
