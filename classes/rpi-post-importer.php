@@ -282,7 +282,7 @@ class RPIPostImporter
                 // Medieninhalte hinzufügen
 
 
-                if (!empty($item['featured_media']) && !$update) {
+                if (!empty($item['featured_media']) && !has_post_thumbnail($post_id)) {
                     $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
                     if (is_array($item['featured_media']) && key_exists('url', $item['featured_media'])) {
                         $this->log('Importing via url in featured media');
@@ -299,6 +299,8 @@ class RPIPostImporter
                         $this->log('An Error has occurred while importing Media');
                     }
 
+                } else {
+                    $this->log('No media provided:(' . var_export($item['featured_media'], true) . ') or thumbnail already exists: (' . var_export(has_post_thumbnail($post_id), true)) . ')';
                 }
 
 
@@ -388,8 +390,8 @@ class RPIPostImporter
                     return false;
 
                 } else {
-                    set_post_thumbnail($post_id, $attachment_id);
-                    $this->log("Added Thumbnail of '$media_url' to '$post_id', with '$attachment_id'");
+                    $media_id = set_post_thumbnail($post_id, $attachment_id);
+                    $this->log("Added Thumbnail of '$media_url' to Post:'$post_id', with Attachment ID:'$attachment_id'");
                 }
 
             } else {
@@ -398,7 +400,7 @@ class RPIPostImporter
             }
 
 
-            if (is_wp_error($media_id)) {
+            if (is_wp_error($media_id) || $media_id) {
                 $this->log('Media import Failed' . $media_id->get_error_message());
                 @unlink($temp_file);
                 return false;
@@ -503,7 +505,12 @@ class RPIPostImporter
             $attach_data = wp_generate_attachment_metadata($attach_id, $file_path);
 
             // Assign metadata to attachment.
-            wp_update_attachment_metadata($attach_id, $attach_data);
+            $success = wp_update_attachment_metadata($attach_id, $attach_data);
+            if ($success) {
+                $this->log('updating attachment meta data successful');
+            } else {
+                $this->log('updating attachment meta data failed');
+            }
 
             return $attach_id;
         }
@@ -544,6 +551,7 @@ class RPIPostImporter
         }
 
 
+        // TODO deprecated code to be deleted
 //        $term_ids = $this->sanitize_imported_post_terms($term_ids);
 //        foreach ($term_ids as $term_id) {
 //            // Namen des Terms aus der Quelle holen
