@@ -24,7 +24,7 @@ class RpiNewsletter
         add_action('cron_post_import_newsletter', [$this, 'getAllInstancesAndImportPosts']);
         add_action('save_post', [$this, 'addInstanceTermOnSave'], 10, 3);
         //TODO delete this and function if development is finished
-        add_shortcode('post_import_newsletter', [$this, 'test']);
+//        add_shortcode('post_import_newsletter', [$this, 'test']);
 
 
         // Add custom Columns in Posttype Newsletter Post
@@ -76,15 +76,15 @@ class RpiNewsletter
 
         }
     }
-
-    public function test()
-    {
-        ob_start();
-
-        echo 'Shortcode Triggered';
-        $this->getAllInstancesAndImportPosts();
-        return ob_get_clean();
-    }
+//
+//    public function test()
+//    {
+//        ob_start();
+//
+//        echo 'Shortcode Triggered';
+//        $this->getAllInstancesAndImportPosts();
+//        return ob_get_clean();
+//    }
 
 
     public function getAllInstancesAndImportPosts()
