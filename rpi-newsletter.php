@@ -2,14 +2,13 @@
 
 /*
 Plugin Name: Rpi Newsletter
-Plugin URI: http://URI_Of_Page_Describing_Plugin_and_Updates
+Plugin URI: https://github.com/rpi-virtuell/rpi-newsletter
 Description: RPI Newsletter Plugin for Newsletter Mainserver
 Version: 1.0
 Author: reintanz
-Author URI: http://URI_Of_The_Plugin_Author
+Author URI: https://github.com/FreelancerAMP
 License: A "Slug" license name e.g. GPL2
 */
-require_once 'classes/rpi-newsletter-cron.php';
 require_once 'classes/rpi-post-importer.php';
 
 if (!defined('ABSPATH')) {
@@ -23,8 +22,6 @@ class RpiNewsletter
     {
         add_action('cron_post_import_newsletter', [$this, 'getAllInstancesAndImportPosts']);
         add_action('save_post', [$this, 'addInstanceTermOnSave'], 10, 3);
-        //TODO delete this and function if development is finished
-//        add_shortcode('post_import_newsletter', [$this, 'test']);
 
 
         // Add custom Columns in Posttype Newsletter Post
@@ -76,15 +73,6 @@ class RpiNewsletter
 
         }
     }
-//
-//    public function test()
-//    {
-//        ob_start();
-//
-//        echo 'Shortcode Triggered';
-//        $this->getAllInstancesAndImportPosts();
-//        return ob_get_clean();
-//    }
 
 
     public function getAllInstancesAndImportPosts()
