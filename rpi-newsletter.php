@@ -9,7 +9,16 @@ Author: reintanz
 Author URI: https://github.com/FreelancerAMP
 License: A "Slug" license name e.g. GPL2
 */
-require_once 'classes/rpi-post-importer.php';
+
+$imports = ['classes/rpi-post-importer.php'];
+foreach ($imports as $import) {
+
+    if (file_exists($import)) {
+        require_once $import;
+    } else {
+        trigger_error('Could not find required file ' . $import, E_USER_WARNING);
+    }
+}
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -30,7 +39,7 @@ class RpiNewsletter
         add_action('manage_instanz_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
         add_filter('manage_newsletter-post_posts_columns', [$this, 'add_custom_columns']);
-//         Populate the custom columns with data
+        //Populate the custom columns with data
         add_action('manage_newsletter-post_posts_custom_column', [$this, 'custom_columns_content'], 10, 2);
 
         add_filter('the_content', [$this, 'redirect_to_origin_page']);
@@ -43,10 +52,11 @@ class RpiNewsletter
             $origin_link = get_post_meta(get_the_ID(), 'import_link', true);
             if (!empty($origin_link)) {
                 wp_redirect($origin_link);
+                exit();
             }
-        } else {
-            return $content;
         }
+        return $content;
+
     }
 
     // Add new columns to the custom post type

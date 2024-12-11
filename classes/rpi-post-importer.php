@@ -79,6 +79,7 @@ class RPIPostImporter
                     $post_data['tags'] = $item['tags'];
                 }
                 if (!empty($item['image'])) {
+
                     $post_data['featured_media'] = $item['image'];
                     $post_data['wp_json_media'] = false;
                 }
@@ -360,9 +361,8 @@ class RPIPostImporter
             if ($wp_json) {
                 $this->log('Multiple media urls received handling them as via wp_json API request');
                 $attachment_id = array();
-                foreach ($media_url ['url'] as $url) {
+                foreach ($media_url as $url) {
                     $attachment_id[] = $this->wp_insert_attachment_from_url($url, $post_id, $wp_json);
-
                 }
                 $this->log('Added ' . count($attachment_id) . ' Attachments to post');
                 return $attachment_id;
