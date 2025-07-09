@@ -1,23 +1,45 @@
 <?php
 
+namespace RpiNewsletter\classes;
+
+use RpiNewsletter\traits\RpiLogging;
+
+/**
+ * @deprecated
+ * This Class has been split up into importer_helper and importer_controller
+ */
 class RPIPostImporter
 {
-    private $logging;
+    use RpiLogging;
 
-    public function rpi_import_post($api_url = '', $status_ignorelist = [], $term_mapping = [], $dryrun = false, $logging = true, $graphql = false, $graphql_body = '')
+    public function __construct()
     {
-        $logging = true;
+    }
 
+    /**
+     * @param $api_url
+     * @param $status_ignorelist
+     * @param $term_mapping
+     * @param $dryrun
+     * @param $graphql
+     * @param $graphql_body
+     * @return array|false|mixed
+     *
+     *  This function is being replaced by the corresponding importer files of each api to reduce parameters
+     * and improve readability
+     * @see \ImporterController::run_import()
+     *
+     * @deprecated
+     */
+    public function rpi_import_post($api_url = '', $status_ignorelist = [], $term_mapping = [], $dryrun = false, $graphql = false, $graphql_body = '')
+    {
 
-        $this->setLogging($logging);
-
-        //TODO change on end of development
 
         $posts = [];
 
         if (boolval($graphql)) {
 
-            $this->log('Start des Graphql Importvorgangs.');
+            $this->log_message('Start des Graphql Importvorgangs.');
 
 
             $data = json_encode(array('query' => $graphql_body));
@@ -31,12 +53,12 @@ class RPIPostImporter
             if (is_wp_error($response)) {
                 $error_message = $response->get_error_message();
 
-                $this->log("Something went wrong: $error_message");
+                $this->log_message("Something went wrong: $error_message");
                 return false;
             } else {
                 // Handle the response
                 $response_body = wp_remote_retrieve_body($response);
-                $this->log("Response received");
+                $this->log_message("Response received");
             }
 
             $response = json_decode($response['body'], true);
@@ -78,17 +100,28 @@ class RPIPostImporter
                 if (!empty($item['tags'])) {
                     $post_data['tags'] = $item['tags'];
                 }
-                if (!empty($item['image'])) {
 
-                    $post_data['featured_media'] = $item['image'];
-                    $post_data['wp_json_media'] = false;
+                $post_data['wp_json_media'] = false;
+                if (is_array($item['image'])) {
+                    if (key_exists('url', $item['image'])) {
+
+//                    $post_data['featured_media'] = $item['image']['url'];
+                        $post_data['featured_media'] = $item['image']['url'];
+                    } elseif (is_array($item['altimages']) && key_exists('altimage', $item['altimages']) && key_exists('url', $item['altimage'])) {
+                        $post_data['featured_media'] = $item['image']['altimages']['altimage']['url'];
+                    }
+
+                    $this->log_message('Added featured media' . var_export($post_data['featured_media'], true));
+
                 }
+
+
                 $post_data['post_author'] = 1;
                 $post_data['post_status'] = 'publish';
                 $post_data['post_type'] = 'post';
 
                 if (isset($item['import_id'])) {
-                    $this->log('import id found : ' . $item['import_id']);
+                    $this->log_message('import id found : ' . $item['import_id']);
                     $existing_post = get_posts([
                         'meta_query' => array(
                             array(
@@ -108,8 +141,7 @@ class RPIPostImporter
                         }
                     }
                 } else {
-
-                    $this->log('Import ID not found aborting post import');
+                    $this->log_message('Import ID not found aborting post import');
                 }
 //                if (!$dryrun) {
 //                    $post_id = $this->create_post($post_data, true);
@@ -119,13 +151,13 @@ class RPIPostImporter
                 if ($post_id && !is_wp_error($post_id)) {
                     $posts[] = $post_id;
                 } else {
-                    $this->log('An Error occured whilst creating a post.' . is_wp_error($post_id) ? $post_id->get_error_message() : 'No error Message');
+                    $this->log_message('An Error occured whilst creating a post.' . is_wp_error($post_id) ? $post_id->get_error_message() : 'No error Message');
                 }
             }
 
 
         } else {
-            $this->log('Start des Importvorgangs.');
+            $this->log_message('Start des Importvorgangs.');
 
             $url = sanitize_url($api_url);
 
@@ -136,16 +168,16 @@ class RPIPostImporter
             if (is_wp_error($response)) {
                 $error_message = $response->get_error_message();
 
-                $this->log("Something went wrong: $error_message");
+                $this->log_message("Something went wrong: $error_message");
                 return false;
             } else {
                 // Handle the response
-                $this->log("Response received");
+                $this->log_message("Response received");
                 $posts = json_decode(wp_remote_retrieve_body($response), true);
 
             }
 
-            $this->log(count($posts) . ' Posts received through remote');
+            $this->log_message(count($posts) . ' Posts received through remote');
 
             // Fetch all pages of results
 //            $news_items = $this->fetch_all_pages($url, $posts);
@@ -161,6 +193,7 @@ class RPIPostImporter
                 $post_data = array(
                     'post_author' => 1, // oder einen dynamischen Autor
                     'post_content' => $item['content']['rendered'],
+                    'post_excerpt' => $item['excerpt']['rendered'],
                     'post_date' => $item['date'],
                     'post_title' => $item['title']['rendered'],
                     'post_status' => 'publish',
@@ -170,10 +203,19 @@ class RPIPostImporter
                         'import_id' => $item['id'], // oder eine andere eindeutige ID
                     ),
                     'categories' => $item['categories'],
-                    'tags' => $item['tags'],
+                    'tags_input' => $item['tags'],
                 );
 
-                $this->log('looking for media links in ' . var_export($item['featured_media'], true));
+                if (empty($term_mapping)) {
+                    foreach ($item['taxonomy_info'] as $tax) {
+                        if (is_array($tax))
+                            foreach ($tax as $term) {
+                                $post_data['tags_input'][] = $term['label'];
+                            }
+                    }
+                }
+
+                $this->log_message('looking for media links in ' . var_export($item['featured_media'], true));
                 if (is_numeric($item['featured_media'])) {
                     if ($this->multiKeyExists($item, 'full') && is_array($item['featured_image_urls_v2']['full'])) {
 //                        foreach ($item['_links']['wp:featuredmedia'] as $featured_media) {
@@ -181,21 +223,21 @@ class RPIPostImporter
 //                        }
                         $post_data['featured_media'] = reset($item['featured_image_urls_v2']['full']);
                         $post_data['wp_json_media'] = false;
-                        $this->log('Found media under featured_image_urls_v2');
+                        $this->log_message('Found media under featured_image_urls_v2');
                     } else {
                         if ($this->multiKeyExists($item, 'wp:featuredmedia') && $this->multiKeyExists($item['_links']['wp:featuredmedia'], 'href')) {
                             $post_data['featured_media'] = reset($item['_links']['wp:featuredmedia'])['href'];
                             $post_data['wp_json_media'] = true;
-                            $this->log('Found media under _links');
+                            $this->log_message('Found media under _links');
                         } else {
-                            $this->log('No viable media Found');
+                            $this->log_message('No viable media Found');
                         }
 
                     }
                 } else {
                     $post_data['featured_media'] = $item['featured_media'];
                     $post_data['wp_json_media'] = false;
-                    $this->log('media links found under featured_media');
+                    $this->log_message('media links found under featured_media');
                 }
 
 
@@ -204,7 +246,7 @@ class RPIPostImporter
 //                } elseif (!empty($item['featured_media']) && key_exists('featured_image_urls_v2', $item)) {
 //
 //                } else {
-//                    $this->log('Found no valid media aborting media import ... ' . var_export($item['featured_media'], true));
+//                    $this->log_message('Found no valid media aborting media import ... ' . var_export($item['featured_media'], true));
 //                }
 
                 if (isset($item['id'])) {
@@ -237,62 +279,50 @@ class RPIPostImporter
             }
         }
 
-        $this->log('Importvorgang abgeschlossen.');
+        $this->log_message('Importvorgang abgeschlossen.');
         return $posts;
 
 
     }
 
-    private function log($message)
-    {
-        if ($this->getLogging()) {
-
-            $log_file = WP_CONTENT_DIR . '/rpi_post_importer_log.txt'; // Pfad zur Log-Datei
-            $timestamp = current_time('mysql');
-            $entry = "{$timestamp}: {$message}\n";
-
-            file_put_contents($log_file, $entry, FILE_APPEND);
-        }
-    }
-
     /**
-     * @return mixed
+     * @param $existing_post
+     * @return false
+     *
+     * @deprecated
+     * @see \ImporterHelper::check_if_post_exists()
      */
-    public function getLogging()
-    {
-        return $this->logging;
-    }
-
-    /**
-     * @param mixed $logging
-     */
-    public function setLogging($logging)
-    {
-        $this->logging = $logging;
-    }
 
     public function check_if_post_exists($existing_post)
     {
         $post_exists = false;
         if (count($existing_post) > 0) {
             $existing_post = reset($existing_post);
-            $this->log("Imported Post $existing_post->ID already exists! Updating ...");
+            $this->log_message("Imported Post $existing_post->ID already exists! Updating ...");
             $post_exists = $existing_post->ID;
         }
         return $post_exists;
     }
 
+    /**
+     * @param $item
+     * @param $update
+     * @return false|int|\WP_Error
+     * @see \ImporterHelper::create_post()
+     *
+     * @deprecated
+     */
     private function create_post($item, $update = false)
     {
 
         if (!empty($item['post_title']) && !empty($item['post_content'])) {
             // Annahme: $item enthält alle notwendigen Informationen
 
-            $this->log("Trying to create Post with provided Data");
+            $this->log_message("Trying to create Post with provided Data");
             // Erstellen des Beitrags
             $post_id = wp_insert_post($item, true);
             if (is_wp_error($post_id)) {
-                $this->log($post_id->get_error_message());
+                $this->log_message($post_id->get_error_message());
                 return false;
             }
             // Überprüfen, ob der Beitrag erfolgreich erstellt wurde.
@@ -302,9 +332,9 @@ class RPIPostImporter
 
 
                 if (!empty($item['featured_media']) && !has_post_thumbnail($post_id)) {
-                    $this->log('Trying to import media: ' . var_export($item['featured_media'], true));
+                    $this->log_message('Trying to import media: ' . var_export($item['featured_media'], true));
                     if (!$item['wp_json_media']) {
-                        $this->log('Importing via url in featured media');
+                        $this->log_message('Importing via url in featured media');
                         $media_id = $this->import_media($item['featured_media'], $post_id, false);
                     } else {
                         $media_id = $this->import_media($item['featured_media'], $post_id);
@@ -312,30 +342,32 @@ class RPIPostImporter
                     }
 
                     if ($media_id) {
-                        $this->log('Media Imported');
+                        $this->log_message('Media Imported');
                     } else {
-                        $this->log('An Error has occurred while importing Media');
+                        $this->log_message('An Error has occurred while importing Media');
                     }
 
                 } else {
-                    $this->log('No media provided:(' . var_export($item['featured_media'], true) . ') or thumbnail already exists: (' . var_export(has_post_thumbnail($post_id), true)) . ')';
+                    $this->log_message('No media provided:(' . var_export($item['featured_media'], true) . ') or thumbnail already exists: (' . var_export(has_post_thumbnail($post_id), true)) . ')';
+                    $this->log_message('Attachment ID ' . var_export(wp_get_attachment_url(get_post_thumbnail_id($post_id)), true));
+
                 }
 
 
                 // Kategorien und Tags hinzufügen
                 if (!empty($item['categories'])) {
-                    $this->log('Trying to assign Categories Terms: ' . var_export($item['categories'], true));
+                    $this->log_message('Trying to assign Categories Terms: ' . var_export($item['categories'], true));
                     $this->assign_terms($post_id, $item['categories'], 'category');
-                    $this->log('Assignment of Categories Terms complete');
+                    $this->log_message('Assignment of Categories Terms complete');
                 }
                 if (!empty($item['tags'])) {
-                    $this->log('Trying to assign Tags Terms: ' . var_export($item['tags'], true));
+                    $this->log_message('Trying to assign Tags Terms: ' . var_export($item['tags'], true));
                     $this->assign_terms($post_id, $item['tags'], 'post_tag');
-                    $this->log('Assignment of Tags Terms complete');
+                    $this->log_message('Assignment of Tags Terms complete');
 
                 }
 
-                $this->log("Beitrag (ID: $post_id) erstellt: '{$item['post_title']}'");
+                $this->log_message("Beitrag (ID: $post_id) erstellt: '{$item['post_title']}'");
                 return $post_id;
             }
         }
@@ -343,44 +375,52 @@ class RPIPostImporter
 
     }
 
+    /**
+     * @param $media_url
+     * @param $post_id
+     * @param $wp_json
+     * @return array|bool|int|\WP_Error
+     * @deprecated
+     *
+     */
     private function import_media($media_url, $post_id = 0, $wp_json = true)
     {
 
         if ($wp_json) {
-            $this->log('Trying to import Media via wp_json');
+            $this->log_message('Trying to import Media via wp_json');
         } else {
-            $this->log('Trying to import Media via direct Download');
+            $this->log_message('Trying to import Media via direct Download');
         }
         if (!$media_url) {
-            $this->log('No Media URL provided');
+            $this->log_message('No Media URL provided');
             return false;
         }
 
         if (is_array($media_url)) {
 
             if ($wp_json) {
-                $this->log('Multiple media urls received handling them as via wp_json API request');
+                $this->log_message('Multiple media urls received handling them as via wp_json API request');
                 $attachment_id = array();
                 foreach ($media_url as $url) {
                     $attachment_id[] = $this->wp_insert_attachment_from_url($url, $post_id, $wp_json);
                 }
-                $this->log('Added ' . count($attachment_id) . ' Attachments to post');
+                $this->log_message('Added ' . count($attachment_id) . ' Attachments to post');
                 return $attachment_id;
             } else {
-                $this->log('Multiple media urls received but no wp_json urls cant compute! returning ...');
+                $this->log_message('Multiple media urls received but no wp_json urls cant compute! returning ...');
                 return false;
             }
 
 
         } else {
             // Der Dateiname wird aus der URL extrahiert.
-            $this->log('Single Media File download via URL' . var_export($media_url, true));
+            $this->log_message('Single Media File download via URL' . var_export($media_url, true));
             $file_name = basename($media_url);
 
             // Temporärdatei erstellen.
             $temp_file = download_url($media_url);
             if (is_wp_error($temp_file)) {
-                $this->log('Trying to download the media caused the following Error: ' . $temp_file->get_error_message());
+                $this->log_message('Trying to download the media caused the following Error: ' . $temp_file->get_error_message());
                 return false;
             }
 
@@ -395,16 +435,16 @@ class RPIPostImporter
 
 
             if (!function_exists('media_handle_sideload')) {
-                $this->log('function media_handle_sideload not found, using wp_insert_attachment instead');
+                $this->log_message('function media_handle_sideload not found, using wp_insert_attachment instead');
                 $attachment_id = $this->wp_insert_attachment_from_url($media_url, $post_id, $wp_json);
 
                 if (!$attachment_id) {
-                    $this->log("Attachment of '$media_url' to Post '$post_id' failed");
+                    $this->log_message("Attachment of '$media_url' to Post '$post_id' failed");
                     return false;
 
                 } else {
                     $media_id = set_post_thumbnail($post_id, $attachment_id);
-                    $this->log("Added Thumbnail of '$media_url' to Post:'$post_id', with Attachment ID:'$attachment_id'");
+                    $this->log_message("Added Thumbnail of '$media_url' to Post:'$post_id', with Attachment ID:'$attachment_id'");
                 }
 
             } else {
@@ -414,7 +454,7 @@ class RPIPostImporter
 
 
             if (is_wp_error($media_id)) {
-                $this->log('Media import Failed' . $media_id->get_error_message());
+                $this->log_message('Media import Failed' . $media_id->get_error_message());
                 @unlink($temp_file);
                 return false;
             }
@@ -424,44 +464,56 @@ class RPIPostImporter
 
     }
 
+    /**
+     * @param $url
+     * @param $parent_post_id
+     * @param $wp_json
+     * @return false|int|\WP_Error
+     * @deprecated
+     * @see \ImporterHelper::wp_insert_attachment_from_url()
+     *
+     */
     function wp_insert_attachment_from_url($url, $parent_post_id = null, $wp_json = true)
     {
-        $this->log('running wp_insert_attachment() as wpjson: ' . var_export($wp_json, true) . ' url ' . var_export($url, true));
+        $this->log_message('running wp_insert_attachment() as wpjson: ' . var_export($wp_json, true) . ' url ' . var_export($url, true));
         if ($wp_json) {
 
             $url = sanitize_url($url);
 
             if (function_exists('wp_remote_get')) {
-                $this->log('wp_remote_get found ... running function...' . var_export($url, true));
+                $this->log_message('wp_remote_get found ... running function...' . var_export($url, true));
                 // HTTP request to the API
                 $response = wp_remote_get($url);
             } else {
-                $this->log('ERROR function wp_remote_get not found');
+                $this->log_message('ERROR function wp_remote_get not found');
                 return false;
             }
 
+            $this->log_message('WP_REMOTE_GET result ' . var_export($response, true));
+
+
             if (is_wp_error($response)) {
-                $this->log('Error response: ' . $response->get_error_message());
+                $this->log_message('Error response: ' . $response->get_error_message());
                 return false;
             }
             $attachment = json_decode(wp_remote_retrieve_body($response), true);
             if (is_array($attachment)) {
 
                 if (!key_exists('guid', $attachment) && !key_exists('rendered', $attachment['guid'])) {
-                    $this->log("RESPONSE ERROR: Array Path ['guid']['rendered'] not found in " . var_export($attachment, true));
+                    $this->log_message("RESPONSE ERROR: Array Path ['guid']['rendered'] not found in " . var_export($attachment, true));
                     return false;
                 }
 
-                $http = new WP_Http();
+                $http = new \WP_Http();
                 $response = $http->request($attachment['guid']['rendered']);
                 if (200 !== $response['response']['code']) {
-                    $this->log('WP_Http returned HTTP code ' . var_export($response['response'], true));
+                    $this->log_message('WP_Http returned HTTP code ' . var_export($response['response'], true));
                     return false;
                 }
 
                 $upload = wp_upload_bits(basename($attachment['guid']['rendered']), null, $response['body']);
                 if (empty($upload['file'])) {
-                    $this->log('wp_upload_bits returned error: ' . var_export($upload, true) . 'while trying to upload file' . var_export($response['body'], true));
+                    $this->log_message('wp_upload_bits returned error: ' . var_export($upload, true) . 'while trying to upload file' . var_export($response['body'], true));
 
                     return false;
                 }
@@ -496,30 +548,30 @@ class RPIPostImporter
                 return $attach_id;
 
             } else {
-                $this->log('Error unexpected attachment received' . var_export($attachment, true));
+                $this->log_message('Error unexpected attachment received' . var_export($attachment, true));
             }
 
         } else {
 
-            $this->log('inserting file via direct download');
+            $this->log_message('inserting file via direct download');
 
 //            TODO ADD check if description and caption of thumbnail are present if not abort
-            if (!class_exists('WP_Http')) {
+            if (!class_exists('\WP_Http')) {
                 require_once ABSPATH . WPINC . '/class-http.php';
             }
 
 
-            $http = new WP_Http();
-            $this->log('requesting http body via url');
+            $http = new \WP_Http();
+            $this->log_message('requesting http body via url');
             $response = $http->request($url);
             if (200 !== $response['response']['code']) {
-                $this->log('WP_Http returned HTTP code ' . var_export($response['response'], true));
+                $this->log_message('WP_Http returned HTTP code ' . var_export($response['response'], true));
                 return false;
             }
 
             $upload = wp_upload_bits(basename($url), null, $response['body']);
             if (!empty($upload['error'])) {
-                $this->log('wp_upload_bits returned error: ' . var_export($upload['error'], true) . 'while trying to upload file' . var_export($response['body'], true));
+                $this->log_message('wp_upload_bits returned error: ' . var_export($upload['error'], true) . 'while trying to upload file' . var_export($response['body'], true));
                 return false;
             }
 
@@ -528,7 +580,7 @@ class RPIPostImporter
             $file_type = wp_check_filetype($file_name, null);
             $attachment_title = sanitize_file_name(pathinfo($file_name, PATHINFO_FILENAME));
             $wp_upload_dir = wp_upload_dir();
-            $this->log('wp_upload_dir returned ' . var_export($wp_upload_dir, true));
+            $this->log_message('wp_upload_dir returned ' . var_export($wp_upload_dir, true));
 
             $post_info = array(
                 'guid' => $wp_upload_dir['url'] . '/' . $file_name,
@@ -549,9 +601,9 @@ class RPIPostImporter
             // Assign metadata to attachment.
             $success = wp_update_attachment_metadata($attach_id, $attach_data);
             if ($success) {
-                $this->log('updating attachment meta data successful');
+                $this->log_message('updating attachment meta data successful');
             } else {
-                $this->log('updating attachment meta data failed');
+                $this->log_message('updating attachment meta data failed');
             }
 
             return $attach_id;
@@ -560,54 +612,59 @@ class RPIPostImporter
         return false;
     }
 
+    /**
+     * @param $post_id
+     * @param array $term_ids
+     * @param $taxonomy
+     * @return void
+     * @deprecated
+     * @see \ImporterHelper::assign_terms()
+     *
+     */
     private function assign_terms($post_id, array $term_ids, $taxonomy)
     {
         if (taxonomy_exists($taxonomy)) {
-            $this->log('Sanitizing imported post terms');
+            $this->log_message('Sanitizing imported post terms');
 //        $term_ids = $this->sanitize_imported_post_terms($term_ids);
 
             if (is_array(reset($term_ids))) {
                 $term_ids = array_column(reset($term_ids), 'name');
             }
-            $this->log("Assigning terms with IDs " . var_export($term_ids, true));
+            $this->log_message("Assigning terms with IDs " . var_export($term_ids, true));
             foreach ($term_ids as $term_id) {
 
                 if (is_numeric($term_id)) {
-                    $this->log('provided Array contains Id Import URL for Terms required');
+                    $this->log_message('provided Array contains Id Import URL for Terms required');
                 } else {
                     $existing_term = term_exists($term_id, $taxonomy);
                     if (!$existing_term) {
-                        $this->log('Provided Term:' . $term_id . ' doesn\'t exist. creating term');
+                        $this->log_message('Provided Term:' . $term_id . ' doesn\'t exist. creating term');
                         wp_insert_term($term_id, $taxonomy);
                     }
                     $new_term = get_term_by('name', $term_id, $taxonomy);
 
-                    $this->log('Passed Term Array ' . var_export($new_term, true));
+                    $this->log_message('Passed Term Array ' . var_export($new_term, true));
                     wp_set_post_terms($post_id, array($new_term->term_id), $taxonomy, true);;
 
                 }
             }
 
         } else {
-            $this->log('Error Taxonomy' . $taxonomy . ' does not exist');
+            $this->log_message('Error Taxonomy' . $taxonomy . ' does not exist');
         }
 
 
-        // TODO deprecated code to be deleted
-//        $term_ids = $this->sanitize_imported_post_terms($term_ids);
-//        foreach ($term_ids as $term_id) {
-//            // Namen des Terms aus der Quelle holen
-//            if (is_numeric($term_id)) {
-//                $term_name = get_term_by('id', $term_id, $taxonomy)->name;
-//            }
-//            // Term-ID im Zielblog übersetzen
-//            $translated_term_id = $this->check_term_if_exists_and_create($term_name, $taxonomy);
-//            if (!empty($translated_term_id)) {
-//                wp_set_object_terms($post_id, $translated_term_id, $taxonomy, true);
-//            }
-//        }
     }
 
+    /**
+     * @param $post_id
+     * @param $term_mapping
+     * @param $item
+     * @return void
+     * @deprecated
+     * @see \ImporterHelper::term_mapping()
+     *
+     */
     private function term_mapping($post_id, $term_mapping, $item)
     {
         if (is_array($term_mapping)) {
@@ -624,7 +681,15 @@ class RPIPostImporter
         }
     }
 
-    private function multiKeyExists(array $arr, $key)
+    /**
+     * @param array $arr
+     * @param $key
+     * @return bool
+     * @see \ImporterHelper::multiKeyExists()
+     *
+     * @deprecated
+     */
+    private function multiKeyExists(array $arr, $key): bool
     {
 
         // is in base array?
@@ -645,6 +710,13 @@ class RPIPostImporter
         return false;
     }
 
+    /**
+     * @param $api_url
+     * @param $data
+     * @param $page
+     * @return array|mixed
+     * @deprecated this function is currently not used
+     */
     public function fetch_all_pages($api_url, $data, $page = 1)
     {
         $per_page = 10; // Number of items per page
@@ -672,6 +744,12 @@ class RPIPostImporter
         return $data;
     }
 
+    /**
+     * @param $term_ids
+     * @return array|mixed
+     * @deprecated this function is currently not used
+     *
+     */
     private function sanitize_imported_post_terms($term_ids)
     {
         foreach ($term_ids as $key => $term_id) {
@@ -687,6 +765,12 @@ class RPIPostImporter
         return $term_ids;
     }
 
+    /**
+     * @param $source_term_name
+     * @param $taxonomy
+     * @return false|int|mixed
+     * @deprecated this function is currently not used
+     */
     private function check_term_if_exists_and_create($source_term_name, $taxonomy)
     {
         // Überprüfen, ob ein Term mit diesem Namen im Zielblog existiert.
@@ -703,7 +787,7 @@ class RPIPostImporter
         // Überprüfen, ob die Erstellung erfolgreich war.
         if (is_wp_error($new_term)) {
             // Fehlerbehandlung, eventuell Logging.
-            $this->log("Failed to translate term '$source_term_name' to '$taxonomy' " . $new_term->get_error_message());
+            $this->log_message("Failed to translate term '$source_term_name' to '$taxonomy' " . $new_term->get_error_message());
             return false;
         }
 

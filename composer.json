@@ -1,0 +1,21 @@
+{
+  "name": "vendor_name/src",
+  "description": "description",
+  "minimum-stability": "stable",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "reintanz",
+      "email": "reintanz@comenius.de"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "symfony/yaml": "^6.0"
+
+  },"autoload": {
+  "psr-4": {
+    "RPINewsletter\\": "src/"
+  }
+}
+}
