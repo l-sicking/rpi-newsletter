@@ -1,16 +1,16 @@
 <?php
 
-namespace RPINewsletter\classes\importer\apis\rss;
+namespace RPI_ls_Newsletter\classes\importer\apis\rss;
 
-use RPINewsletter\classes\importer\Importer;
-use RPINewsletter\classes\importer\rss\DOMDocument;
-use RpiNewsletter\traits\RpiLogging;
+use RPI_ls_Newsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\rss\DOMDocument;
+use Rpi_ls_Newsletter\traits\Rpi_ls_Logging;
 
 
 
 class RssImporter implements Importer
 {
-    use RpiLogging;
+    use Rpi_ls_Logging;
 
     function __construct()
     {

@@ -1,5 +1,5 @@
 <?php
-namespace RPINewsletter\classes\importer;
+namespace RPI_ls_Newsletter\classes\importer;
 
 
 

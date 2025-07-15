@@ -1,9 +1,9 @@
 <?php
 
-namespace RPINewsletter\classes\importer\apis\typo3;
+namespace RPI_ls_Newsletter\classes\importer\apis\typo3;
 
 
-use RPINewsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\Importer;
 
 class Typo3Importer implements Importer
 {

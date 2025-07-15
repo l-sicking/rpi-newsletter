@@ -1,12 +1,12 @@
 <?php
-namespace RPINewsletter\classes\importer\apis\git;
+namespace RPI_ls_Newsletter\classes\importer\apis\git;
 
 
-use RPINewsletter\classes\importer\git\Exception;
-use RPINewsletter\classes\importer\git\Parsedown;
-use RPINewsletter\classes\importer\git\RecursiveDirectoryIterator;
-use RPINewsletter\classes\importer\git\RecursiveIteratorIterator;
-use RPINewsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\git\Exception;
+use RPI_ls_Newsletter\classes\importer\git\Parsedown;
+use RPI_ls_Newsletter\classes\importer\git\RecursiveDirectoryIterator;
+use RPI_ls_Newsletter\classes\importer\git\RecursiveIteratorIterator;
+use RPI_ls_Newsletter\classes\importer\Importer;
 use Symfony\Component\Yaml\Yaml;
 
 /**

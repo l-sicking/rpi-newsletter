@@ -1,9 +1,9 @@
-# Rpi Newsletter Plugin
+# Rpi_ls_ Newsletter Plugin
 
 ![WordPress Plugin](https://img.shields.io/badge/WordPress-Plugin-brightgreen.svg)
 
 ## Description
-The **Rpi Newsletter Plugin** is designed for the RPI Newsletter Mainserver. It provides functionality for importing and managing newsletter posts within a WordPress site.
+The **Rpi_ls_ Newsletter Plugin** is designed for the RPI_ls_Newsletter Mainserver. It provides functionality for importing and managing newsletter posts within a WordPress site.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -38,7 +38,7 @@ Posts can be redirected to their original source by setting the `import_link` me
 
 ## Contributing
 
-We welcome contributions to the Rpi Newsletter Plugin! To contribute:
+We welcome contributions to the Rpi_ls_ Newsletter Plugin! To contribute:
 
 1. Fork the repository on GitHub.
 2. Create a new branch from `main` for your feature or bug fix.

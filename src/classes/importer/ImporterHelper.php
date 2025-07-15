@@ -1,16 +1,16 @@
 <?php
-namespace RPINewsletter\classes\importer;
+namespace RPI_ls_Newsletter\classes\importer;
 
 
 
-//require_once plugin_dir_path(__FILE__) . 'src/traits/RpiLogging.php';
+//require_once plugin_dir_path(__FILE__) . 'src/traits/Rpi_ls_Logging.php';
 
-use RpiNewsletter\traits\RpiLogging;
+use Rpi_ls_Newsletter\traits\Rpi_ls_Logging;
 
 
 class ImporterHelper{
 
- use  RpiLogging;
+ use  Rpi_ls_Logging;
 
 
     public function check_if_post_exists($existing_post)

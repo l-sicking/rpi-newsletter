@@ -1,16 +1,16 @@
 <?php
 
-namespace RPINewsletter\classes\importer;
+namespace RPI_ls_Newsletter\classes\importer;
 //require_once plugin_dir_path(__FILE__) . 'ImporterHelper.php';
 //require_once plugin_dir_path(__FILE__) . 'ImporterSetup.php';
 
 
-use RPINewsletter\classes\importer\ImporterSetup;
-use RPINewsletter\classes\importer\ImporterHelper;
-use RPINewsletter\classes\RPIPostImporter;
-use RPINewsletter\traits\RpiLogging;
-use RPINewsletter\classes\importer\apis\wpjson;
-use RPINewsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\ImporterSetup;
+use RPI_ls_Newsletter\classes\importer\ImporterHelper;
+use RPI_ls_Newsletter\classes\RPI_ls_PostImporter;
+use RPI_ls_Newsletter\traits\Rpi_ls_Logging;
+use RPI_ls_Newsletter\classes\importer\apis\wpjson;
+use RPI_ls_Newsletter\classes\importer\Importer;
 /**
  * @TODO
  * Controller Class that provides Logic for Importer Core Logic
@@ -19,7 +19,7 @@ class ImporterController
 {
 
 
-    use RpiLogging;
+    use Rpi_ls_Logging;
 
     private object $importerHelper;
 
@@ -95,7 +95,7 @@ class ImporterController
             $this->log_message('Trying to use Importer API: ' . print_r($api_controller, true));
                 $importer = new $api_controller();
 
-            if ($importer instanceof \RPINewsletter\classes\importer\Importer) {
+            if ($importer instanceof \RPI_ls_Newsletter\classes\importer\Importer) {
 
 
 

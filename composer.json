@@ -5,8 +5,8 @@
   "license": "proprietary",
   "authors": [
     {
-      "name": "reintanz",
-      "email": "reintanz@comenius.de"
+      "name": "sicking",
+      "email": "sicking@comenius.de"
     }
   ],
   "require": {
@@ -15,7 +15,7 @@
 
   },"autoload": {
   "psr-4": {
-    "RPINewsletter\\": "src/"
+    "RPI_ls_Newsletter\\": "src/"
   }
 }
 }

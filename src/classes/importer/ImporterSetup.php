@@ -1,16 +1,16 @@
 <?php
 
-namespace RPINewsletter\classes\importer;
+namespace RPI_ls_Newsletter\classes\importer;
 require_once  dirname(__DIR__, 3).'/vendor/autoload.php';
-use RPINewsletter\classes\importer\Importer;
-use RpiNewsletter\traits\RpiLogging;
+use RPI_ls_Newsletter\classes\importer\Importer;
+use Rpi_ls_Newsletter\traits\Rpi_ls_Logging;
 /**
  * Class ImporterSetup
  * Handles the setup and functionality for the Instanz Importer.
  */
 class ImporterSetup
 {
-    use RpiLogging;
+    use Rpi_ls_Logging;
     /**
      * Constructor method to set up hooks for WordPress actions.
      */
@@ -96,13 +96,13 @@ class ImporterSetup
         $dir = plugin_dir_path( __FILE__ ) . 'apis/';
         // Define the fully qualified class name (FQCN) for the interface.
         // This assumes your interface is correctly autoloaded.
-        $interface_fqcn ='RPINewsletter\\classes\\importer\\Importer';
+        $interface_fqcn ='RPI_ls_Newsletter\\classes\\importer\\Importer';
 
         // It's good practice to ensure the interface is available.
         // With PSR-4, just referencing it should trigger autoloading if needed.
         // However, if it's not yet loaded for some reason, class_exists() will return false.
         if ( ! interface_exists( $interface_fqcn ) ) {
-            $this->log_message( 'RPI-Newsletter Error: APIImporterInterface is not loaded or does not exist.' );
+            $this->log_message( 'RPI_ls_Newsletter Error: APIImporterInterface is not loaded or does not exist.' );
             // You might consider manually requiring it here ONLY if you're sure
             // your autoloader isn't set up correctly for this specific file,
             // but ideally, the autoloader should handle it.
@@ -129,9 +129,9 @@ class ImporterSetup
 
 
                     // Construct the Fully Qualified Class Name (FQCN) based on your namespace structure.
-                    // Assuming RPINewsletter\Importer\APIs\<ApiName>\<ApiName>Importer
+                    // Assuming RPI_ls_Newsletter\Importer\APIs\<ApiName>\<ApiName>Importer
                     $namespace_segment = ucfirst( sanitize_title( $item ) ); // e.g., 'Graphql', 'Wpjson'
-                    $class_fqcn = 'RPINewsletter'. strtolower('\\classes\\Importer\\APIs\\' . $namespace_segment . '\\' ). ucfirst( $item ) . 'Importer';
+                    $class_fqcn = 'RPI_ls_Newsletter'. strtolower('\\classes\\Importer\\APIs\\' . $namespace_segment . '\\' ). ucfirst( $item ) . 'Importer';
 
                     // With PSR-4, referencing the FQCN here will trigger the autoloader
                     // if the class hasn't been loaded yet.
@@ -155,7 +155,7 @@ class ImporterSetup
                         } else {
                             // Class exists, but doesn't implement the required interface.
                             $this->log_message( sprintf(
-                                'RPI-Newsletter Debug: Class "%s" found but does not implement interface "%s".',
+                                'RPI_ls_Newsletter Debug: Class "%s" found but does not implement interface "%s".',
                                 $class_fqcn,
                                 $interface_fqcn
                             ) );
@@ -165,7 +165,7 @@ class ImporterSetup
                         // This often indicates an issue with the class definition itself (e.g., syntax error)
                          // or a problem with the autoloader's mapping for this specific FQCN.
 //                        $this->log_message( sprintf(
-//                            'RPI-Newsletter Debug: Expected class "%s" in file "%s" not found or failed to autoload.',
+//                            'RPI_ls_Newsletter Debug: Expected class "%s" in file "%s" not found or failed to autoload.',
 //                            $class_fqcn,
 //                            $class_file_path
 //                        ) );
@@ -180,7 +180,7 @@ class ImporterSetup
 //    function get_classes_implementing_interface(): array
 //    {
 //        $directory = plugin_dir_path(__FILE__) . 'apis/';
-//        $interface = 'RPINewsletter\classes\importer\Importer';
+//        $interface = 'RPI_ls_Newsletter\classes\importer\Importer';
 //        $classes = [];
 //        $directoryiterator = new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS);
 //        $iterator = new \RecursiveIteratorIterator($directoryiterator, \recursiveIteratorIterator::CHILD_FIRST);
@@ -192,7 +192,7 @@ class ImporterSetup
 //               $baseDir =  plugin_dir_path(__FILE__);
 //                $relativePath = str_replace([$baseDir, '/', '.php'], ['', '\\', ''], $file->getPathname());
 //                $class =  __NAMESPACE__.'\\'.$relativePath;
-////                $class =  "RPINewsletter\classes\importer\\".$relativePath;
+////                $class =  "RPI_ls_Newsletter\classes\importer\\".$relativePath;
 //                var_dump($class);
 //                if (class_exists($class)) {
 //                    $reflectionClass = new \ReflectionClass($class);

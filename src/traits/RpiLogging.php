@@ -1,7 +1,7 @@
 <?php
-namespace RpiNewsletter\traits;
+namespace Rpi_ls_Newsletter\traits;
 
-trait RpiLogging
+trait Rpi_ls_Logging
 {
     private bool $debugmode = true;
 

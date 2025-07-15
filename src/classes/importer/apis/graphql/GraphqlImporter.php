@@ -1,16 +1,16 @@
 <?php
-namespace RPINewsletter\classes\importer\apis\graphql;
+namespace RPI_ls_Newsletter\classes\importer\apis\graphql;
 
-use RPINewsletter\classes\importer\Importer;
-use RPINewsletter\classes\importer\ImporterHelper;
-use RpiNewsletter\traits\RpiLogging;
+use RPI_ls_Newsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\ImporterHelper;
+use Rpi_ls_Newsletter\traits\Rpi_ls_Logging;
 
 //require_once plugin_dir_path(__FILE__) . 'src/classes/importer/importer_helper.php';
 //require_once plugin_dir_path(__FILE__) . 'src/classes/importer/whitelist_domain_enum.php';
 
 class GraphqlImporter implements Importer
 {
-    use RpiLogging;
+    use Rpi_ls_Logging;
 
     function __construct()
     {

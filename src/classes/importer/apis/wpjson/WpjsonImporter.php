@@ -1,14 +1,14 @@
 <?php
 
-namespace RPINewsletter\classes\importer\apis\wpjson;
+namespace RPI_ls_Newsletter\classes\importer\apis\wpjson;
 
-use RPINewsletter\classes\importer\Importer;
-use RPINewsletter\classes\importer\ImporterHelper;
-use RPINewsletter\traits\RpiLogging;
+use RPI_ls_Newsletter\classes\importer\Importer;
+use RPI_ls_Newsletter\classes\importer\ImporterHelper;
+use RPI_ls_Newsletter\traits\Rpi_ls_Logging;
 
 class WpjsonImporter implements Importer
 {
-    use RpiLogging;
+    use Rpi_ls_Logging;
  function __construct()
  {
 
