@@ -1,16 +1,16 @@
 <?php
 
-namespace RpiNewsletter\classes;
+namespace Rpi_ls_Newsletter\classes;
 
-use RpiNewsletter\traits\RpiLogging;
+use Rpi_ls_Newsletter\traits\Rpi_ls_Logging;
 
 /**
  * @deprecated
  * This Class has been split up into importer_helper and importer_controller
  */
-class RPIPostImporter
+class RPI_ls_PostImporter
 {
-    use RpiLogging;
+    use Rpi_ls_Logging;
 
     public function __construct()
     {

@@ -1,21 +1,21 @@
 <?php
 
 /*
-Plugin Name: Rpi Newsletter
+Plugin Name: Rpi_ls_ Newsletter
 Plugin URI: https://github.com/rpi-virtuell/rpi-newsletter
-Description: RPI Newsletter Plugin for Newsletter Mainserver
+Description: RPI_ls_Newsletter Plugin for Newsletter Mainserver
 Version: 1.0
-Author: reintanz
-Author URI: https://github.com/FreelancerAMP
+Author: sicking
+Author URI: https://github.com/l-sicking
 License: A "Slug" license name e.g. GPL2
 */
 
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
 
 
-use RPINewsletter\classes\RPIPostImporter;
-use RPINewsletter\classes\importer\ImporterController;
-use RPINewsletter\traits\RpiLogging;
+use RPI_ls_Newsletter\classes\RPI_ls_PostImporter;
+use RPI_ls_Newsletter\classes\importer\ImporterController;
+use RPI_ls_Newsletter\traits\Rpi_ls_Logging;
 
 // Ensure this file is accessed within WordPress
 if (!defined('ABSPATH')) {
@@ -23,10 +23,10 @@ if (!defined('ABSPATH')) {
 }
 
 
-class RpiNewsletter
+class Rpi_ls_Newsletter
 {
 
-    use RpiLogging;
+    use Rpi_ls_Logging;
 
     public function __construct()
     {
@@ -268,7 +268,7 @@ class RpiNewsletter
 //            }
 
 
-            $importer = new RPIPostImporter();
+            $importer = new RPI_ls_PostImporter();
 $this->log_message('Importer Started');
 //
 //            var_dump($importer);
@@ -340,7 +340,7 @@ $this->log_message('Importer Started');
 }
 
 // Initialize the plugin
-new RpiNewsletter();
+new Rpi_ls_Newsletter();
 
 
 
